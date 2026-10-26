@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026i';
+const BUILD = '20261026j';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -410,7 +410,7 @@ function drawBars(cv, { bars, goal, color, yFmt = v => v.toFixed(0) }) {
 
 // ---------- 畫面 ----------
 const TABS = [['home', '🏠', '今天'], ['med', '💊', '藥物'], ['body', '⚖️', '身體'], ['stats', '📈', '趨勢'], ['set', '⚙️', '設定']];
-const ui = { tab: 'home', dose: null, customDose: false, site: null, range: 90, wShow: 20, fatU: '%', musU: 'kg', sheet: null, food: null, medSeg: 'shot', cheer: 0, penForm: { mg: 0.25, doses: 4 } };
+const ui = { tab: 'home', dose: null, customDose: false, site: null, range: 90, wShow: 20, fatU: '%', musU: 'kg', sheet: null, food: null, medSeg: 'shot', cheer: 0, penForm: { mg: 0.25, total: 4 } };
 
 function render() {
   $('#today').textContent = fmtDate(Date.now());
@@ -649,7 +649,7 @@ function viewPen() {
   const weeks = first ? (Date.now() - first) / (7 * DAY) : 0;
   let h = `<div class="card"><h2>🖊️ 手上這支筆</h2>${ps ? `
     <div class="between"><div><div class="big">${ps.left}<small>mg 剩下</small></div>
-    <div class="sub">${fmtFull(ps.p.ts)} 買的 ${ps.p.mgPerDose} mg 筆 · 總量 ${ps.p.totalMg} mg · 已打 ${ps.n} 次共 ${+ps.used.toFixed(2)} mg</div></div></div>
+    <div class="sub">${fmtFull(ps.p.ts)} 買的 ${ps.p.totalMg} mg 筆 · 已打 ${ps.n} 次共 ${+ps.used.toFixed(2)} mg</div></div></div>
     ${bar(ps.left, ps.p.totalMg, ps.left <= (ps.usual || 0) ? 'var(--warn)' : 'var(--shot)')}
     <div class="between sub"><span>以 ${ps.usual} mg 計算,還能打 <b>${ps.doses ?? '—'}</b> 次</span>${ps.doses != null ? `<span>${ps.doses <= 1 ? '<span class="pill warn">該準備下一支了</span>' : `約到 ${fmtDate(Date.now() + ps.doses * (S.settings.interval || 7) * DAY)}`}</span>` : ''}</div>
     <div class="row" style="margin-top:12px"><button class="btn ghost small" data-act="adjPen">修正剩餘量</button><button class="btn ghost small" data-act="endPen">這支用完了</button></div>`
@@ -666,20 +666,20 @@ function viewPen() {
   h += `<div class="card"><h2>＋ 記錄買筆</h2>
     <div class="grid2"><div><label class="f">購買日期</label><input class="in" id="pDate" type="date" value="${dayKey(Date.now())}"></div>
     <div><label class="f">金額 NT$</label><input class="in" id="pPrice" type="number" inputmode="numeric" placeholder="例如 6000"></div></div>
-    <label class="f">筆的劑量(每劑)</label>
+    <div class="grid2"><div><label class="f">① 這支筆總共幾 mg</label><input class="in" id="pTotal" type="number" inputmode="decimal" step="0.01" value="${pp.total}"></div>
+    <div><label class="f">買幾支</label><input class="in" id="pQty" type="number" inputmode="numeric" value="1"></div></div>
+    <label class="f">② 每次打幾 mg</label>
     <div class="chips">${DOSES.map(x => `<button class="chip ${pp.mg === x ? 'on' : ''}" data-act="pMg" data-v="${x}">${x} mg</button>`).join('')}</div>
-    <div class="grid3"><div><label class="f">幾劑</label><input class="in" id="pDoses" type="number" inputmode="numeric" value="${pp.doses}"></div>
-    <div><label class="f">總量 mg</label><input class="in" id="pTotal" type="number" inputmode="decimal" step="0.01" value="${+(pp.mg * pp.doses).toFixed(2)}"></div>
-    <div><label class="f">數量(支)</label><input class="in" id="pQty" type="number" inputmode="numeric" value="1"></div></div>
+    <div class="sub" id="pCalc" style="margin-top:8px">${pp.total && pp.mg ? `👉 這支可以打 <b>${Math.floor(pp.total / pp.mg + 1e-9)}</b> 次` : ''}</div>
     <label class="f">在哪買(選填)</label><input class="in" id="pPlace" placeholder="例如:○○診所">
     <label class="row" style="margin-top:12px;font-size:14px"><input type="checkbox" id="pUse" ${ps ? '' : 'checked'} style="width:20px;height:20px"> 現在開始用這支</label>
     <button class="btn block" style="margin-top:12px" data-act="savePen">✓ 儲存</button>
-    <div class="note">猛健樂 KwikPen 一支 4 劑,總量 = 每劑 × 4。買多支時金額填「全部的總價」,會拆成每支一筆。</div></div>`;
+    <div class="note">例如:一支 4 mg、每次打 0.25 mg → 可以打 16 次。劑量調高後,App 會用你實際打的劑量算剩多少。買多支時金額填「全部的總價」,會拆成每支一筆。</div></div>`;
   const list = [...S.purchases].sort((a, b) => b.ts - a.ts);
   h += `<div class="card"><h2>買筆紀錄 <small>共 ${list.length} 支</small></h2>${list.length ? `<div class="list">${list.map(p => {
     const active = S.activePen?.id === p.id, used = penTotal(p.id);
     const tag = active ? '<span class="pill ok">使用中</span>' : p.done || used >= p.totalMg - 0.01 ? '<span class="pill">已用完</span>' : used > 0 ? '<span class="pill warn">用過</span>' : '<span class="pill">未開封</span>';
-    return `<div class="item"><div class="grow"><div class="v">${p.mgPerDose} mg × ${p.doses} 劑 · ${money(p.price)} ${tag}</div>
+    return `<div class="item"><div class="grow"><div class="v">${p.totalMg} mg 筆 · ${money(p.price)} ${tag}</div>
       <div class="t">${fmtFull(p.ts)}${p.place ? ' · ' + esc(p.place) : ''} · 已用 ${+used.toFixed(2)} / ${p.totalMg} mg</div></div>
       ${!active ? `<button class="btn ghost small" data-act="usePen" data-id="${p.id}">開始用</button>` : ''}<button class="x" data-act="delPen" data-id="${p.id}">✕</button></div>`;
   }).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
@@ -719,9 +719,13 @@ function medClick(act, b, v) {
     if (c && confirm(`刪除自訂部位「${c.name}」?(舊紀錄仍會保留名稱)`)) { S.customSites = S.customSites.filter(x => x !== c); if (ui.site === c.id) ui.site = null; save(); render(); }
     return true;
   }
-  if (act === 'pMg') { ui.penForm.mg = +v; ui.penForm.doses = num($('#pDoses').value) || 4; render(); return true; }
+  if (act === 'pMg') { // 不重畫,避免已填的金額被清掉
+    ui.penForm.mg = +v; b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('#pTotal').dispatchEvent(new Event('input', { bubbles: true })); return true;
+  }
   if (act === 'savePen') {
-    const doses = num($('#pDoses').value) || 4, total = num($('#pTotal').value) || ui.penForm.mg * doses;
+    const total = num($('#pTotal').value); if (!total) return toast('請填這支筆總共幾 mg'), true;
+    const doses = Math.floor(total / ui.penForm.mg + 1e-9); ui.penForm.total = total;
     const qty = Math.max(1, Math.round(num($('#pQty').value) || 1)), price = num($('#pPrice').value);
     const ts = new Date($('#pDate').value + 'T12:00').getTime() || Date.now();
     if (price == null) return toast('請填金額'), true;
@@ -1322,7 +1326,7 @@ document.addEventListener('click', e => {
   else if (act === 'update') checkUpdate(true);
   else if (act === 'wipe') { if (confirm('確定清除全部資料?無法復原(建議先備份)') && confirm('真的要清除嗎?')) { S = blank(); save(); applyTheme(); render(); } }
 });
-document.addEventListener('input', e => { if (['wKg', 'wFat', 'wMus'].includes(e.target.id)) convUpdate(); if (e.target.id === 'pDoses') $('#pTotal').value = +(ui.penForm.mg * (num(e.target.value) || 0)).toFixed(2); });
+document.addEventListener('input', e => { if (['wKg', 'wFat', 'wMus'].includes(e.target.id)) convUpdate(); if (e.target.id === 'pTotal') { const t = num(e.target.value); $('#pCalc').innerHTML = t ? `👉 這支可以打 <b>${Math.floor(t / ui.penForm.mg + 1e-9)}</b> 次` : ''; } });
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'fileIn' && el.files[0]) { el.files[0].text().then(restore); el.value = ''; return; }
