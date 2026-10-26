@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026m';
+const BUILD = '20261026n';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -890,8 +890,8 @@ function viewSet() {
     <div class="note">${st.syncLast ? `上次同步:${fmtDT(st.syncLast)}` : '還沒同步過'}${st.hkLast ? ` · 上次收到健康資料:${fmtDT(st.hkLast)}` : ''}<br>有這把金鑰的人技術上都讀得到資料,請只給自己的裝置。</div>
     <div style="border-top:1px solid var(--hair);margin:14px 0 6px"></div>
     <b style="font-size:14px">🍎 iPhone 健康(步數、睡眠)</b>
-    <div class="sub" style="margin-top:4px">網頁 App 不能直接讀「健康」,要用 iPhone「捷徑」每天把步數和睡眠送上來。</div>
-    ${base ? `<details class="how"><summary>捷徑怎麼設定?(第一次設定一次就好)</summary><ol>
+    <div class="sub" style="margin-top:4px;line-height:1.7">👣 <b>步數不用另外設定</b>:你在「血壓記錄」用的「血壓匯出」捷徑已經會送步數,這裡會自動帶進來。<br>😴 睡眠可以在首頁按 ±0.5 手動填。想自動帶入睡眠,才需要照下面設定捷徑(選做)。</div>
+    ${base ? `<details class="how"><summary>(選做)自動帶入睡眠的捷徑怎麼設定?</summary><ol>
       <li>打開「捷徑」→ 下方「自動化」→ 右上 ＋ →「特定時間」→ 每天 <b>22:00</b> →「立即執行」。</li>
       <li>加動作「<b>尋找健康樣本</b>」:類型「步數」、條件「開始日期 是 今天」。</li>
       <li>加動作「<b>計算統計資料</b>」:總和。</li>
@@ -1073,6 +1073,13 @@ async function fetchBp() {
     .map(r => ({ ts: r.ts, sbp: r.sbp, dbp: r.dbp, pulse: r.pulse ?? null })).sort((a, b) => a.ts - b.ts);
   let health = null;
   if (mid) { const r = await fetch(base + '/bp_health/' + mid + '.json', { cache: 'no-store' }); if (r.ok) health = await r.json(); }
+  // 步數:血壓記錄 App 的「血壓匯出」捷徑已經會送步數,直接沿用,不用另外設捷徑
+  let n = 0;
+  for (const x of st.steps || []) {
+    if (!x || x.deleted || x.memberId !== mid || !x.day || !(x.n >= 0)) continue;
+    const dd = dayData(x.day); if (dd.steps !== x.n) { dd.steps = x.n; n++; }
+  }
+  if (n) save();
   BP = { at: Date.now(), members, mid, recs, health };
   try { localStorage.setItem(BPKEY, JSON.stringify(BP)); } catch (e) {}
 }
