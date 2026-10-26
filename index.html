@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="加油日記">
+<meta name="theme-color" content="#5b45c9">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>加油日記</title>
+<style>
+:root {
+  --page: #f4f3f8; --surface: #fefeff; --sunken: #ecebf3;
+  --ink: #17151f; --ink2: #4e4a5c; --muted: #8a8698;
+  --hair: rgba(23,21,31,0.10); --grid: #e4e2ec;
+  --accent: #5b45c9; --accent-soft: rgba(91,69,201,0.10); --on-accent: #ffffff;
+  --weight: #5b45c9; --avg: #e0841a; --shot: #17936b; --level: #17936b;
+  --ok: #1a9e6e; --warn: #d98a00; --bad: #d64545;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #121117; --surface: #1c1b23; --sunken: #26252f;
+    --ink: #f2f1f6; --ink2: #c6c3d2; --muted: #8f8b9c;
+    --hair: rgba(255,255,255,0.11); --grid: #2c2a35;
+    --accent: #9d8cf2; --accent-soft: rgba(157,140,242,0.16); --on-accent: #120f1d;
+    --weight: #9d8cf2; --avg: #f0a24a; --shot: #4cc79a; --level: #4cc79a;
+    --ok: #4cc79a; --warn: #f0b23c; --bad: #f07070;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #121117; --surface: #1c1b23; --sunken: #26252f;
+  --ink: #f2f1f6; --ink2: #c6c3d2; --muted: #8f8b9c;
+  --hair: rgba(255,255,255,0.11); --grid: #2c2a35;
+  --accent: #9d8cf2; --accent-soft: rgba(157,140,242,0.16); --on-accent: #120f1d;
+  --weight: #9d8cf2; --avg: #f0a24a; --shot: #4cc79a; --level: #4cc79a;
+  --ok: #4cc79a; --warn: #f0b23c; --bad: #f07070;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action: manipulation; }
+html, body { background: var(--page); }
+body { font-family: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background:none; border:none; cursor:pointer; }
+input, select, textarea { font: inherit; color: var(--ink); }
+#app { max-width: 520px; margin: 0 auto; min-height: 100dvh; display:flex; flex-direction:column; }
+.topbar { display:flex; align-items:baseline; justify-content:space-between; padding: calc(14px + env(safe-area-inset-top)) 16px 8px; }
+.topbar h1 { font-size: 20px; font-weight: 800; letter-spacing: .03em; }
+.topbar .date { font-size: 12px; color: var(--muted); }
+main { flex:1; padding: 4px 14px calc(84px + env(safe-area-inset-bottom)); }
+.tabbar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 520px; display: flex;
+  background: var(--surface); border-top: 1px solid var(--hair); padding-bottom: env(safe-area-inset-bottom); z-index: 20; }
+.tabbar button { flex:1; padding: 9px 0 8px; display:flex; flex-direction:column; align-items:center; gap:2px; font-size: 11px; color: var(--muted); }
+.tabbar button .ic { font-size: 19px; line-height: 1; }
+.tabbar button.on { color: var(--accent); font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--hair); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+.card h2 { font-size: 14px; font-weight: 700; color: var(--ink2); margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center; }
+.card h2 small { font-weight: 500; color: var(--muted); font-size: 12px; }
+.big { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.big small { font-size: 16px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.sub { font-size: 13px; color: var(--ink2); }
+.muted { color: var(--muted); }
+.row { display:flex; gap: 10px; align-items:center; }
+.grow { flex:1; }
+.between { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
+.bar { height: 10px; background: var(--sunken); border-radius: 99px; overflow:hidden; margin: 10px 0 6px; }
+.bar > i { display:block; height:100%; background: var(--accent); border-radius: 99px; }
+.pill { white-space: nowrap; display:inline-block; padding: 3px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+.pill.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.pill.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.pill.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.btn { text-decoration: none; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding: 11px 16px; border-radius: 12px; font-weight: 700;
+  background: var(--accent); color: var(--on-accent); font-size: 15px; }
+.btn.ghost { background: var(--sunken); color: var(--ink); }
+.btn.block { width: 100%; }
+.btn.small { padding: 7px 11px; font-size: 13px; border-radius: 10px; }
+.btn.danger { background: transparent; color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent); }
+label.f { display:block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+.in { width: 100%; padding: 11px 12px; border-radius: 11px; border: 1px solid var(--hair); background: var(--sunken); font-size: 16px; }
+.in:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.chips { display:flex; flex-wrap:wrap; gap: 7px; }
+.chip { padding: 8px 12px; border-radius: 99px; background: var(--sunken); font-size: 14px; border: 1px solid transparent; }
+.chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 700; }
+.chip.sugg { border-style: dashed; border-color: var(--shot); }
+.site { padding: 12px 6px; border-radius: 12px; background: var(--sunken); text-align:center; font-size: 13px; border: 1px solid transparent; }
+.site b { display:block; font-size: 15px; margin-bottom: 2px; }
+.site.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.site.sugg:not(.on) { border: 1px dashed var(--shot); }
+.site .ago { font-size: 11px; color: var(--muted); }
+.list .item { display:flex; align-items:center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--hair); }
+.list .item:first-child { border-top: none; }
+.list .item .t { font-size: 12px; color: var(--muted); }
+.list .item .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.x { color: var(--muted); font-size: 18px; padding: 4px 8px; }
+.stats { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--sunken); border-radius: 12px; padding: 10px 12px; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .n { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.stat .n small { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 2px; }
+canvas.chart { width: 100%; height: 220px; display:block; }
+.legend { display:flex; gap: 14px; font-size: 12px; color: var(--ink2); margin-top: 6px; flex-wrap: wrap; }
+.legend i { display:inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.counter { display:flex; align-items:center; gap: 8px; }
+.counter .n { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 70px; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+.empty { text-align:center; color: var(--muted); padding: 22px 6px; font-size: 14px; line-height: 1.7; }
+.toast { position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--page);
+  padding: 10px 16px; border-radius: 99px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events:none; z-index: 50; }
+.toast.show { opacity: .95; }
+.update { position: fixed; top: 0; left: 0; right: 0; background: var(--accent); color: var(--on-accent); text-align:center; padding: calc(10px + env(safe-area-inset-top)) 10px 10px; font-weight: 700; z-index: 60; font-size: 14px; }
+textarea.in { min-height: 90px; font-size: 13px; }
+.seg { display:flex; background: var(--sunken); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex:1; padding: 6px 4px; border-radius: 8px; font-size: 13px; color: var(--ink2); }
+.seg button.on { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; display:none; }
+.sheet-bg.show { display:block; }
+.sheet { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 520px; max-height: 92dvh; overflow-y: auto;
+  background: var(--page); border-radius: 20px 20px 0 0; z-index: 45; padding: 14px 14px calc(20px + env(safe-area-inset-bottom)); display:none; }
+.sheet.show { display:block; }
+.sheet-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+.sheet-head h3 { font-size: 17px; }
+.macros { display:grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.macro .n { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.macro .n small { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 3px; }
+.macro .k { font-size: 13px; color: var(--ink2); font-weight: 600; margin-top: 1px; }
+.macro .bar { margin: 6px 0 0; height: 7px; }
+.unit { display:inline-flex; background: var(--sunken); border-radius: 99px; padding: 2px; }
+.unit button { padding: 5px 11px; border-radius: 99px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.unit button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.conv { font-size: 12px; color: var(--muted); text-align: right; margin-top: 3px; min-height: 16px; }
+.ai-btns { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+.act3 { display:grid; grid-template-columns: 1fr 1fr 1fr; text-align:center; }
+.act3 .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.act3 .k { font-size: 12px; color: var(--muted); }
+details.how summary { cursor:pointer; font-size: 13px; font-weight: 700; color: var(--accent); margin-top: 10px; }
+details.how ol { font-size: 13px; line-height: 1.7; color: var(--ink2); padding-left: 20px; margin-top: 6px; }
+code { font-size: 12px; background: var(--sunken); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+.cheer { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), color-mix(in srgb, var(--avg) 12%, var(--surface))); }
+details.guide { border-top: 1px solid var(--hair); padding: 10px 0 2px; }
+details.guide:first-of-type { border-top: none; }
+details.guide summary { font-size: 15px; color: var(--ink); margin-top: 0; }
+details.guide ul { font-size: 14px; line-height: 1.75; color: var(--ink2); padding-left: 20px; margin: 6px 0 4px; }
+details.guide li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar"><h1>💪 加油日記</h1><span class="date" id="today"></span></div>
+  <main id="main"></main>
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+<div class="toast" id="toast"></div>
+<div class="sheet-bg" id="sheetBg" data-act="closeSheet"></div>
+<div class="sheet" id="sheet"></div>
+
+<script>
+const BUILD = '20261026e';
+const KEY = 'pen-log-v1';
+
+// 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
+const DRUGS = {
+  tirz:   { name: '猛健樂 Mounjaro', gen: 'tirzepatide', half: 120, tmax: 24, interval: 7 },
+  wegovy: { name: '週纖達 Wegovy', gen: 'semaglutide', half: 168, tmax: 48, interval: 7 },
+  ozem:   { name: '胰妥讚 Ozempic', gen: 'semaglutide', half: 168, tmax: 48, interval: 7 },
+  saxen:  { name: '善纖達 Saxenda', gen: 'liraglutide', half: 13, tmax: 11, interval: 1 },
+  other:  { name: '其他', gen: '', half: 0, tmax: 0, interval: 7 },
+};
+const DOSES = [2.5, 5, 7.5, 10, 12.5, 15];
+const SITES = [
+  ['abdL', '腹部', '左側'], ['abdR', '腹部', '右側'],
+  ['thL', '大腿', '左'], ['thR', '大腿', '右'],
+  ['armL', '上臂', '左'], ['armR', '上臂', '右'],
+];
+const FX = ['噁心', '嘔吐', '便秘', '腹瀉', '脹氣', '胃食道逆流', '沒胃口', '疲倦', '頭痛', '頭暈', '掉髮', '注射處紅腫', '都很好 👍'];
+const MEALS = ['早餐', '午餐', '晚餐', '點心'];
+const NUTS = [['kcal', '卡路里', '大卡', '🔥'], ['protein', '蛋白質', 'g', '🐟'], ['carb', '碳水', 'g', '🍚'], ['fat', '脂肪', 'g', '💧'], ['fiber', '纖維', 'g', '🌿']];
+const AI_PROMPT = `請根據我附上的食物照片(或文字描述),估計這一餐的營養成分。
+只回覆一段 JSON,不要任何其他文字:
+{"name":"食物名稱","kcal":熱量大卡,"protein":蛋白質克,"carb":碳水克,"fat":脂肪克,"fiber":纖維克}
+數字只填數字。如果有好幾樣食物請全部加總,name 用頓號列出。份量看不出來就用台灣常見的一般份量估計。`;
+
+// ---------- 資料 ----------
+function blank() {
+  return {
+    settings: { height: null, startWeight: null, goalWeight: null, goalDate: null, drug: 'tirz', interval: 7, penDoses: 4,
+      kcalGoal: 1500, proteinGoal: null, carbGoal: 100, fatGoal: 50, fiberGoal: 25, waterGoal: 2000, sleepGoal: 7, stepsGoal: 8000,
+      hkKey: '', hkLast: null, theme: 'auto',
+      shotDow: 1, shotTime: '21:00', docOn: true, docTime: '19:00', docName: '' },
+    visits: [],
+    weights: [], heights: [], shots: [], foods: [], daily: {}, customSites: [], purchases: [], supps: [], activePen: null,
+  };
+}
+let S;
+function load() {
+  try { S = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || 'null') || {}); }
+  catch (e) { S = blank(); }
+  S.settings = Object.assign(blank().settings, S.settings);
+  if (!S.heights.length && S.settings.height) S.heights.push({ id: uid(), ts: Date.now(), cm: S.settings.height });
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('儲存失敗:' + e.message); } }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+// ---------- 小工具 ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const DAY = 86400000;
+const WD = '日一二三四五六';
+function dayKey(ts) { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function fmtDate(ts) { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; }
+function fmtFull(ts) { const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`; }
+function fmtDT(ts) { const d = new Date(ts); return `${fmtDate(ts)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function toInput(ts) { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function startOfDay(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+const f1 = n => (Math.round(n * 10) / 10).toFixed(1);
+const r0 = n => Math.round(n || 0);
+const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : null; };
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2000); }
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const weightsSorted = () => [...S.weights].sort((a, b) => a.ts - b.ts);
+const shotsSorted = () => [...S.shots].sort((a, b) => a.ts - b.ts);
+const latestWeight = () => { const w = weightsSorted(); return w[w.length - 1] || null; };
+const latestOf = k => { const w = weightsSorted().filter(x => x[k] != null); return w[w.length - 1] || null; };
+const lastShot = () => { const s = shotsSorted(); return s[s.length - 1] || null; };
+const startWeight = () => S.settings.startWeight ?? (weightsSorted()[0]?.kg ?? null);
+const heightNow = () => { const h = [...S.heights].sort((a, b) => a.ts - b.ts); return h.length ? h[h.length - 1].cm : S.settings.height; };
+function bmi(kg) { const h = heightNow(); return h && kg ? kg / ((h / 100) ** 2) : null; }
+function bmiTag(b) { // 衛福部國健署成人 BMI 標準
+  if (b == null) return '';
+  if (b < 18.5) return '<span class="pill warn">過輕</span>';
+  if (b < 24) return '<span class="pill ok">正常</span>';
+  if (b < 27) return '<span class="pill warn">過重</span>';
+  return '<span class="pill bad">肥胖</span>';
+}
+function dayData(k) { return S.daily[k] || (S.daily[k] = { water: 0, fx: [] }); }
+const today = () => dayData(dayKey(Date.now()));
+function proteinGoal() { const g = S.settings.proteinGoal; if (g) return g; const w = S.settings.goalWeight || latestWeight()?.kg; return w ? Math.round(w * 1.2) : 80; }
+function goalOf(k) { return k === 'protein' ? proteinGoal() : S.settings[k + 'Goal'] || 0; }
+function foodsOn(k) { return S.foods.filter(f => dayKey(f.ts) === k).sort((a, b) => a.ts - b.ts); }
+function nutTotals(k) { const t = { kcal: 0, protein: 0, carb: 0, fat: 0, fiber: 0 }; for (const f of foodsOn(k)) for (const n in t) t[n] += f[n] || 0; return t; }
+
+// 下次施打
+const weekly = () => (S.settings.interval || 7) === 7;
+function atTime(ts, hhmm) { const d = new Date(ts); const [h, m] = String(hhmm || '21:00').split(':').map(Number); d.setHours(h || 0, m || 0, 0, 0); return d.getTime(); }
+// 最近一次「排定的打針時間」(<= 現在)
+function lastScheduled(now = Date.now()) {
+  const d = new Date(now); const back = (d.getDay() - S.settings.shotDow + 7) % 7;
+  let t = atTime(now - back * DAY, S.settings.shotTime);
+  if (t > now) t -= 7 * DAY;
+  return t;
+}
+function nextShot() {
+  const ls = lastShot(), now = Date.now();
+  let due;
+  if (weekly()) {
+    const prev = lastScheduled(now), next = prev + 7 * DAY;
+    // 排定時間前 3 天內(或之後)打過,就算那一次打過了
+    if (!ls) due = startOfDay(prev) === startOfDay(now) ? prev : next;
+    else if (ls.ts >= next - 3 * DAY) due = next + 7 * DAY;
+    else if (ls.ts >= prev - 3 * DAY) due = next;
+    else due = prev;
+  } else {
+    if (!ls) return null;
+    due = atTime(ls.ts + (S.settings.interval || 1) * DAY, S.settings.shotTime);
+  }
+  return { due, days: Math.round((startOfDay(due) - startOfDay(now)) / DAY) };
+}
+// 回診:每月月底(這個月已回診過就算下個月)
+function monthEnd(y, m) { return atTime(new Date(y, m + 1, 0).getTime(), S.settings.docTime); }
+function nextDoctor() {
+  if (!S.settings.docOn) return null;
+  const now = new Date(); let y = now.getFullYear(), m = now.getMonth();
+  const visited = S.visits.some(v => { const d = new Date(v.ts); return d.getFullYear() === y && d.getMonth() === m; });
+  let due = monthEnd(y, m);
+  if (visited || due < Date.now() - DAY) { m++; due = monthEnd(y, m); }
+  return { due, days: Math.round((startOfDay(due) - startOfDay(Date.now())) / DAY) };
+}
+const WDN = ['日', '一', '二', '三', '四', '五', '六'];
+function allSites() { return [...SITES, ...S.customSites.map(c => [c.id, c.name, ''])]; }
+function siteUsedAt() { const u = {}; for (const s of S.shots) if (s.site && (!u[s.site] || s.ts > u[s.site])) u[s.site] = s.ts; return u; }
+function suggestSite() {
+  const used = siteUsedAt(), last = lastShot()?.site;
+  return allSites().map(x => x[0]).filter(id => id !== last).sort((a, b) => (used[a] || 0) - (used[b] || 0))[0];
+}
+function siteName(id) { const s = allSites().find(x => x[0] === id); return s ? s[1] + s[2] : (S.shots.find(x => x.site === id && x.siteName)?.siteName || ''); }
+
+// 粗估體內藥量(線性吸收到高峰後指數衰退)
+function levelAt(t) {
+  let sum = 0;
+  for (const s of S.shots) {
+    const d = DRUGS[s.drug]; if (!d || !d.half || !(s.dose > 0)) continue;
+    const h = (t - s.ts) / 3600000; if (h < 0) continue;
+    sum += h < d.tmax ? s.dose * h / d.tmax : s.dose * Math.pow(0.5, (h - d.tmax) / d.half);
+  }
+  return sum;
+}
+function movingAvg(pts, days = 7) {
+  return pts.map(p => { const win = pts.filter(q => q.x <= p.x && q.x > p.x - days * DAY); return { x: p.x, y: win.reduce((a, q) => a + q.y, 0) / win.length }; });
+}
+
+// 預計達標:用近 4 週(不足就用全部)體重做線性回歸
+function projection() {
+  const goal = S.settings.goalWeight, ws = weightsSorted();
+  if (!goal || ws.length < 2) return null;
+  let pts = ws.filter(w => w.ts > Date.now() - 28 * DAY);
+  if (pts.length < 3 || pts[pts.length - 1].ts - pts[0].ts < 7 * DAY) pts = ws.slice(-20);
+  const n = pts.length, mx = pts.reduce((a, p) => a + p.ts, 0) / n, my = pts.reduce((a, p) => a + p.kg, 0) / n;
+  let sxy = 0, sxx = 0; for (const p of pts) { sxy += (p.ts - mx) * (p.kg - my); sxx += (p.ts - mx) ** 2; }
+  if (!sxx) return null;
+  const slope = sxy / sxx; // kg / ms
+  const cur = movingAvg(ws.map(w => ({ x: w.ts, y: w.kg }))).pop().y;
+  const res = { cur, weekly: -slope * 7 * DAY, left: cur - goal };
+  if (res.left <= 0) res.done = true;
+  else if (slope < 0) res.eta = Date.now() + res.left / -slope;
+  if (S.settings.goalDate) {
+    const gd = new Date(S.settings.goalDate + 'T00:00').getTime(), wk = (gd - Date.now()) / (7 * DAY);
+    res.goalDate = gd; res.needWeekly = wk > 0 ? res.left / wk : null;
+  }
+  return res;
+}
+function projHtml(p, compact) {
+  if (!p) return '';
+  if (p.done) return '<div class="sub" style="margin-top:8px">🎉 7 日平均已達目標</div>';
+  let h = p.eta ? `📅 照目前速度(每週 −${f1(p.weekly)} kg),預計 <b>${fmtFull(p.eta)}</b> 達標,約 ${Math.ceil((p.eta - Date.now()) / (7 * DAY))} 週`
+    : '📅 最近體重沒有下降趨勢,還算不出預計達標日';
+  if (p.goalDate) h += p.needWeekly != null ? `<br>🎯 想在 ${fmtFull(p.goalDate)} 達標:每週需減 <b>${f1(p.needWeekly)} kg</b>${p.eta ? (p.eta <= p.goalDate ? ' <span class="pill ok">來得及</span>' : ' <span class="pill warn">要加油</span>') : ''}` : `<br>🎯 目標日 ${fmtFull(p.goalDate)} 已過`;
+  return `<div class="sub" style="margin-top:8px;line-height:1.7">${h}</div>`;
+}
+
+// ---------- 圖表(canvas 手繪) ----------
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr; const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  c.font = '11px system-ui, -apple-system, sans-serif'; return { c, W, H };
+}
+function yGrid(c, L, R, W, Y, lo, hi, yFmt) {
+  c.strokeStyle = css('--grid'); c.fillStyle = css('--muted'); c.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, y = Y(v);
+    c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke();
+    c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(yFmt(v), L - 5, y);
+  }
+}
+function drawChart(cv, { series, x0, x1, markers = [], yFmt = v => v.toFixed(0), goal = null, zero = false }) {
+  const { c, W, H } = setupCanvas(cv);
+  const all = series.flatMap(s => s.pts.map(p => p.y)); if (goal != null) all.push(goal);
+  if (!all.length) return;
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (hi - lo < 2) { lo -= 1; hi += 1; }
+  const padY = (hi - lo) * 0.12; lo -= padY; hi += padY; if (zero) lo = 0;
+  if (x1 - x0 < DAY) { x0 -= DAY / 2; x1 += DAY / 2; }
+  const L = 38, R = 10, T = 10, B = markers.length ? 40 : 24;
+  const X = x => L + (x - x0) / (x1 - x0) * (W - L - R);
+  const Y = y => T + (hi - y) / (hi - lo) * (H - T - B);
+  yGrid(c, L, R, W, Y, lo, hi, yFmt);
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  const n = Math.min(5, Math.max(2, Math.floor((W - L) / 70)));
+  for (let i = 0; i <= n; i++) { const t = x0 + (x1 - x0) * i / n, d = new Date(t); c.fillText(`${d.getMonth() + 1}/${d.getDate()}`, Math.min(W - R - 12, Math.max(L + 12, X(t))), H - B + 5); }
+  if (goal != null) {
+    c.setLineDash([4, 4]); c.strokeStyle = css('--ok'); c.beginPath(); c.moveTo(L, Y(goal)); c.lineTo(W - R, Y(goal)); c.stroke(); c.setLineDash([]);
+    c.fillStyle = css('--ok'); c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText('目標 ' + yFmt(goal), L + 4, Y(goal) - 2);
+  }
+  for (const s of series) {
+    if (!s.pts.length) continue;
+    c.strokeStyle = s.color; c.fillStyle = s.color; c.lineWidth = s.width || 2; c.lineJoin = 'round';
+    if (s.fill) {
+      c.beginPath(); c.moveTo(X(s.pts[0].x), Y(lo)); s.pts.forEach(p => c.lineTo(X(p.x), Y(p.y)));
+      c.lineTo(X(s.pts[s.pts.length - 1].x), Y(lo)); c.closePath(); c.globalAlpha = .15; c.fill(); c.globalAlpha = 1;
+    }
+    if (s.line !== false) { c.beginPath(); s.pts.forEach((p, i) => i ? c.lineTo(X(p.x), Y(p.y)) : c.moveTo(X(p.x), Y(p.y))); c.stroke(); }
+    if (s.dots) s.pts.forEach(p => { c.beginPath(); c.arc(X(p.x), Y(p.y), s.dots, 0, 7); c.fill(); });
+  }
+  if (Date.now() > x0 && Date.now() < x1) { const nx = X(Date.now()); c.strokeStyle = css('--muted'); c.setLineDash([2, 3]); c.beginPath(); c.moveTo(nx, T); c.lineTo(nx, H - B); c.stroke(); c.setLineDash([]); }
+  c.fillStyle = css('--shot'); c.textAlign = 'center'; c.textBaseline = 'top'; c.font = '10px system-ui, sans-serif';
+  let lastX = -99;
+  for (const m of markers) {
+    const mx = X(m.x); if (mx < L - 1 || mx > W - R + 1) continue;
+    c.beginPath(); c.moveTo(mx, H - B + 20); c.lineTo(mx - 4, H - B + 27); c.lineTo(mx + 4, H - B + 27); c.fill();
+    if (mx - lastX > 26) { c.fillText(m.label, mx, H - B + 28); lastX = mx; }
+  }
+}
+// 每日長條圖
+function drawBars(cv, { bars, goal, color, yFmt = v => v.toFixed(0) }) {
+  const { c, W, H } = setupCanvas(cv);
+  const vals = bars.map(b => b.y || 0); if (goal) vals.push(goal);
+  const hi = Math.max(...vals, 1) * 1.12, lo = 0;
+  const L = 38, R = 8, T = 8, B = 22;
+  const Y = y => T + (hi - y) / (hi - lo) * (H - T - B);
+  yGrid(c, L, R, W, Y, lo, hi, yFmt);
+  const bw = (W - L - R) / bars.length;
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  bars.forEach((b, i) => {
+    const x = L + i * bw;
+    if (b.y) { c.fillStyle = color; c.globalAlpha = goal && b.y < goal ? .55 : 1; c.beginPath(); c.roundRect(x + bw * .18, Y(b.y), bw * .64, Y(0) - Y(b.y), 3); c.fill(); c.globalAlpha = 1; }
+    if (bars.length <= 14 || i % Math.ceil(bars.length / 10) === 0) { c.fillStyle = css('--muted'); c.fillText(b.label, x + bw / 2, H - B + 5); }
+  });
+  if (goal) { c.setLineDash([4, 4]); c.strokeStyle = css('--ok'); c.beginPath(); c.moveTo(L, Y(goal)); c.lineTo(W - R, Y(goal)); c.stroke(); c.setLineDash([]); }
+}
+
+// ---------- 畫面 ----------
+const TABS = [['home', '🏠', '今天'], ['med', '💊', '藥物'], ['body', '⚖️', '身體'], ['stats', '📈', '趨勢'], ['set', '⚙️', '設定']];
+const ui = { tab: 'home', dose: null, customDose: false, site: null, range: 90, wShow: 20, fatU: '%', musU: 'kg', sheet: null, food: null, medSeg: 'shot', cheer: 0, penForm: { mg: 2.5, doses: 4 } };
+
+function render() {
+  $('#today').textContent = fmtDate(Date.now());
+  $('#tabbar').innerHTML = TABS.map(([id, ic, t]) => `<button data-tab="${id}" class="${ui.tab === id ? 'on' : ''}"><span class="ic">${ic}</span>${t}</button>`).join('');
+  $('#main').innerHTML = ({ home: viewHome, med: viewMed, body: viewBody, stats: viewStats, set: viewSet })[ui.tab]();
+  afterRender();
+}
+const bar = (v, g, color) => `<div class="bar"><i style="width:${g ? Math.min(100, v / g * 100) : 0}%;${color ? 'background:' + color : ''}"></i></div>`;
+
+// ---------- 鼓勵的話與注意事項 ----------
+const QUOTES = [
+  '每一小步,都算數。', '今天的你,又比昨天更靠近目標了。', '體重會起伏,方向對了就好。', '不用完美,只要持續。',
+  '對自己溫柔一點,你已經很努力了。', '看 7 天平均,別被一天的數字嚇到。', '平台期是身體在調整,不是你失敗了。',
+  '吃夠蛋白質,是在保護你的肌肉。', '喝杯水,給身體一點愛。', '今天也是好好照顧自己的一天 💪', '慢慢來,比較快。',
+  '你不是在節食,是在養成新習慣。', '每一次打針,都是對自己的承諾。', '衣服變鬆的那一刻,值得好好記住。',
+  '累了就休息,明天繼續就好。', '比起數字,更重要的是身體變輕盈了。', '加油!你比自己想像的更有毅力。',
+  '好好吃飯、好好睡覺,就是最好的減重法。', '今天多走幾步,也是進步。', '相信過程,結果會來。',
+  '偶爾吃多了沒關係,下一餐回到軌道就好。', '你現在做的努力,未來的自己會感謝你。',
+];
+const GUIDE = [
+  ['💉 打針前', [
+    '洗手,用酒精棉片消毒注射部位,<b>等酒精乾了</b>再打,比較不會刺痛。',
+    '從冰箱拿出來的筆可以先放室溫一下再打,冰冰的藥打起來比較痛。',
+    '確認藥液清澈、沒有顆粒或變色;每次都用<b>新針頭</b>。',
+    '照著仿單或衛教師教的步驟操作(例如排氣、轉劑量)。',
+  ]],
+  ['📍 打針時', [
+    '部位:<b>腹部</b>(離肚臍 5 公分以外)、<b>大腿前外側</b>、<b>上臂後側</b>(通常要別人幫忙)。',
+    '<b>輪替部位</b>,同一區也要換點打,避開瘀青、硬塊、疤痕。App 會建議這次打哪裡。',
+    '按到底後依仿單<b>停留幾秒</b>再拔出,避免藥液漏出來。',
+  ]],
+  ['🧊 打針後與保存', [
+    '用過的針頭放進硬殼容器(例如寶特瓶),不要直接丟垃圾桶。',
+    '還沒開封的筆<b>冷藏 2–8°C</b>,<b>不可冷凍</b>;開封後怎麼存放、能放多久,依仿單說明。',
+    '固定每週<b>同一天</b>打,可以在設定加行事曆提醒。',
+    '<b>忘記打</b>:猛健樂在原定時間後 <b>4 天(96 小時)內</b>可補打,超過就跳過,等下次原定日再打;週纖達/胰妥讚一般是 5 天內。<b>不要一次打兩劑</b>。實際以醫師指示為準。',
+  ]],
+  ['🍽️ 飲食順序', [
+    '<b>先吃蔬菜 → 再吃蛋白質(肉、魚、蛋、豆) → 最後吃澱粉</b>,血糖比較穩,也比較快有飽足感。',
+    '每餐先確保有<b>蛋白質</b>,減重時才不會掉太多肌肉。',
+    '<b>細嚼慢嚥</b>,一口嚼 20 下;吃到<b>七分飽</b>就停。藥會讓胃排空變慢,吃太快太多容易噁心。',
+    '<b>少量多餐</b>,不要等到很餓才吃。',
+    '水分在兩餐之間補充,吃飯時不要一次灌很多水,比較不會脹。',
+    '少吃油炸、太油、太甜的食物,少喝碳酸飲料和酒。',
+    '吃完不要馬上躺下,睡前 2–3 小時盡量不吃,減少胃食道逆流。',
+  ]],
+  ['🤢 副作用怎麼辦', [
+    '<b>噁心</b>:吃清淡、小口吃、吃飽就停;通常加劑量後幾天最明顯,會慢慢改善。',
+    '<b>便秘</b>:多喝水、多吃蔬菜纖維、飯後走一走;持續好幾天請問醫師。',
+    '<b>腹瀉</b>:補充水分和電解質,避開油膩食物。',
+    '<b>疲倦、頭暈</b>:可能吃太少或水喝不夠,注意蛋白質和水分。',
+    '<b>掉髮</b>:常跟減太快、蛋白質不夠有關,記得吃夠。',
+  ]],
+  ['🚨 要馬上就醫', [
+    '<b>劇烈腹痛</b>(可能痛到背後),合併嘔吐 —— 要排除胰臟炎。',
+    '右上腹痛、發燒、<b>皮膚或眼白變黃</b> —— 可能是膽囊問題。',
+    '一直吐或拉、吃不下也喝不下、尿變很少 —— 可能脫水。',
+    '心悸、冒冷汗、發抖(尤其同時有用降血糖藥)—— 可能低血糖。',
+    '臉或喉嚨腫、呼吸困難 —— 嚴重過敏。',
+    '打算懷孕或已懷孕,請先跟醫師討論。',
+  ]],
+];
+const TIPS = [
+  '吃飯順序:菜 → 蛋白質 → 澱粉。', '一口嚼 20 下,七分飽就停。', '每餐先吃蛋白質,保護肌肉。', '水在兩餐之間喝,吃飯時少灌水。',
+  '打針前等酒精乾了再打,比較不痛。', '記得輪替注射部位,避免硬塊。', '少量多餐,不要等很餓才吃。', '吃完別馬上躺,睡前 2–3 小時不吃。',
+  '還沒開的筆冷藏 2–8°C,不可冷凍。', '噁心時吃清淡、小口吃。', '便秘就多喝水、多吃菜、飯後走一走。', '少喝碳酸飲料和酒,比較不會脹氣。',
+];
+const dayIdx = () => Math.floor((startOfDay(Date.now()) - new Date(2026, 0, 1).getTime()) / DAY);
+
+function cheerMsg() {
+  if (ui.cheer) return QUOTES[(dayIdx() + ui.cheer) % QUOTES.length]; // 按「換一句」就輪播鼓勵語
+  const ws = weightsSorted(), lw = ws[ws.length - 1], sw = startWeight(), ns = nextShot();
+  if (ns && ns.days === 0 && !(lastShot() && dayKey(lastShot().ts) === dayKey(Date.now()))) return `今天 ${S.settings.shotTime} 打針 💉 打完記得記錄,你很棒!`;
+  const nd = nextDoctor(); if (nd && nd.days >= 0 && nd.days <= 1) return `🩺 ${nd.days ? '明天' : '今天'}要回診,記得問醫師想問的問題!`;
+  if (lw && ws.length >= 3 && dayKey(lw.ts) === dayKey(Date.now()) && lw.kg <= Math.min(...ws.slice(0, -1).map(w => w.kg))) return '🎉 今天創新低!又往目標前進一步了!';
+  if (lw && sw) {
+    const pct = (sw - lw.kg) / sw * 100;
+    for (const m of [20, 15, 10, 5]) if (pct >= m && pct < m + 1) return `🏅 已經減掉體重的 ${m}% 了,超厲害!`;
+    if (S.settings.goalWeight && lw.kg <= S.settings.goalWeight) return '🏆 你達標了!記得跟醫師討論接下來的維持計畫。';
+  }
+  return QUOTES[(dayIdx() + ui.cheer) % QUOTES.length];
+}
+function cheerCard() {
+  return `<div class="card cheer"><div class="between"><div class="grow"><div style="font-size:17px;font-weight:800;line-height:1.5">${cheerMsg()}</div>
+    <div class="sub" style="margin-top:6px">💡 今日小提醒:${TIPS[(dayIdx() + ui.cheer) % TIPS.length]}</div></div>
+    <button class="x" data-act="cheer" title="換一句">↻</button></div></div>`;
+}
+function guideCard(title, keys) {
+  const secs = GUIDE.filter(g => !keys || keys.includes(g[0]));
+  return `<div class="card" id="guide"><h2>${title} <small>點開看</small></h2>${secs.map(([t, items]) => `<details class="how guide"><summary>${t}</summary><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul></details>`).join('')}
+    <div class="note">一般衛教整理,實際請以醫師、藥師與藥品仿單為準。</div></div>`;
+}
+function weightToast(kg) {
+  const ws = weightsSorted(), prev = ws[ws.length - 2];
+  if (!prev) return `已記錄 ${f1(kg)} kg,第一筆紀錄,開始囉 💪`;
+  const d = kg - prev.kg;
+  if (d < -0.05) return `已記錄 ${f1(kg)} kg,比上次少 ${f1(-d)} kg 👏`;
+  if (d > 0.05) return `已記錄 ${f1(kg)} kg。小起伏很正常,看平均就好 💪`;
+  return `已記錄 ${f1(kg)} kg,穩穩的,繼續加油!`;
+}
+
+function viewHome() {
+  const lw = latestWeight(), sw = startWeight(), goal = S.settings.goalWeight;
+  let h = '';
+  if (!lw && !S.shots.length) {
+    h += `<div class="card"><div class="empty">歡迎使用 👋<br>1. 先到 <b>⚙️ 設定</b> 填身高、目標體重、目標日期<br>2. 下面記今天的體重<br>3. 打完針到 <b>💊 藥物</b> 記一筆</div></div>`;
+  }
+  h += cheerCard();
+  if (lw) {
+    const lost = sw != null ? sw - lw.kg : 0, pct = sw ? lost / sw * 100 : 0;
+    const prog = goal && sw && sw > goal ? Math.max(0, Math.min(100, (sw - lw.kg) / (sw - goal) * 100)) : null;
+    const b = bmi(lw.kg), lf = latestOf('fat'), lm = latestOf('muscle');
+    h += `<div class="card"><h2>目前體重 <small>${fmtDT(lw.ts)}</small></h2>
+      <div class="between"><div class="big">${f1(lw.kg)}<small>kg</small></div>
+      <div style="text-align:right">${sw != null ? `<div class="pill ${lost >= 0 ? 'ok' : 'warn'}">${lost >= 0 ? '已減' : '增加'} ${f1(Math.abs(lost))} kg</div><div class="sub" style="margin-top:4px">${f1(Math.abs(pct))}%</div>` : ''}</div></div>
+      ${prog != null ? `${bar(prog, 100)}<div class="between sub"><span>起始 ${f1(sw)}</span><span>${prog >= 100 ? '🎉 達標!' : `還差 ${f1(lw.kg - goal)} kg`}</span><span>目標 ${f1(goal)}</span></div>` : ''}
+      <div class="sub" style="margin-top:8px">${b ? `BMI ${f1(b)} ${bmiTag(b)}` : ''}${lf ? ` · 體脂 ${f1(lf.fat)}%` : ''}${lm ? ` · 骨骼肌 ${f1(lm.muscle)} kg` : ''}</div>
+      ${projHtml(projection())}
+    </div>`;
+  }
+  h += `<div class="card"><h2>記今天體重 <small><a href="#" data-tab="body" style="color:var(--accent)">完整身體測量 ›</a></small></h2><div class="row">
+    <input class="in grow" id="qkg" type="number" inputmode="decimal" step="0.1" placeholder="${lw ? f1(lw.kg) : '例如 68.5'}">
+    <button class="btn" data-act="quickWeight">記錄</button></div></div>`;
+  // 施打
+  const ns = nextShot(), ls = lastShot();
+  let status = '<span class="pill">還沒有施打紀錄</span>';
+  if (ns) status = ns.days > 0 ? `<span class="pill">還有 ${ns.days} 天</span>` : ns.days === 0 ? `<span class="pill warn">今天 ${S.settings.shotTime} 要打 💉</span>` : `<span class="pill bad">已過 ${-ns.days} 天</span>`;
+  const lv = levelAt(Date.now());
+  h += `<div class="card"><h2>施打 <small>${esc(DRUGS[S.settings.drug]?.name || '')}</small></h2>
+    <div class="between"><div>${ns ? `<div style="font-size:18px;font-weight:800">下次:${fmtDT(ns.due)}</div>` : ''}
+      ${ls ? `<div class="sub">上次 ${fmtDT(ls.ts)} · ${ls.dose ?? '?'} mg · ${siteName(ls.site) || '未記部位'}</div>` : ''}</div>${status}</div>
+    <div class="stats" style="margin-top:12px">
+      <div class="stat"><div class="k">建議下次部位</div><div class="n" style="font-size:17px">${siteName(suggestSite()) || '—'}</div></div>
+      <div class="stat"><div class="k">這支筆剩</div><div class="n">${penStatus() ? penStatus().left : '—'}<small>mg${penStatus()?.doses != null ? ` · 可打 ${penStatus().doses} 次` : ''}</small></div></div>
+    </div>
+    ${lv > 0.01 ? `<div class="note">估計體內藥量約 ${lv.toFixed(2)} mg(依半衰期粗估,只供參考)</div>` : ''}
+    <button class="btn block" style="margin-top:12px" data-tab="med" data-seg="shot">＋ 記錄這次施打</button></div>`;
+  // 回診
+  const nd = nextDoctor();
+  if (nd) {
+    const lv2 = [...S.visits].sort((a, b) => b.ts - a.ts)[0];
+    h += `<div class="card"><h2>🩺 回診 <small>${esc(S.settings.docName || '每月月底')}</small></h2>
+      <div class="between"><div><div style="font-size:18px;font-weight:800">下次:${fmtDT(nd.due)}</div>
+      ${lv2 ? `<div class="sub">上次 ${fmtFull(lv2.ts)}${lv2.note ? ' · ' + esc(lv2.note) : ''}</div>` : '<div class="sub">記得帶這個月的體重紀錄給醫師看</div>'}</div>
+      ${nd.days > 0 ? `<span class="pill ${nd.days <= 3 ? 'warn' : ''}">還有 ${nd.days} 天</span>` : nd.days === 0 ? '<span class="pill warn">今天回診</span>' : `<span class="pill bad">已過 ${-nd.days} 天</span>`}</div>
+      <button class="btn ghost block" style="margin-top:12px" data-act="visit">✓ 已回診,記一下</button></div>`;
+  }
+  // 飲食
+  const k = dayKey(Date.now()), tt = nutTotals(k), td = today(), fl = foodsOn(k);
+  h += `<div class="card"><h2>飲食</h2><div class="macros">
+    ${NUTS.slice(1).map(([n, t, u, ic]) => `<div class="macro"><div class="n">${r0(tt[n])}<small>/ ${goalOf(n)}${u}</small></div><div class="k">${ic} ${t}</div>${bar(tt[n], goalOf(n), n === 'protein' ? 'var(--avg)' : '')}</div>`).join('')}</div>
+    <div class="between" style="margin-top:14px"><b>🔥 卡路里</b><b style="font-size:18px">${r0(tt.kcal)} / ${goalOf('kcal')}</b></div>${bar(tt.kcal, goalOf('kcal'), tt.kcal > goalOf('kcal') ? 'var(--bad)' : '')}
+    ${fl.length ? `<div class="list" style="margin-top:8px">${fl.map(f => `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${esc(f.name || '未命名')}</div><div class="t">${f.meal} · ${r0(f.kcal)} 大卡 · 蛋白質 ${r0(f.protein)} g</div></div><button class="x" data-act="delFood" data-id="${f.id}">✕</button></div>`).join('')}</div>` : ''}
+    <button class="btn block" style="margin-top:12px" data-act="openFood">📷 ＋ 記錄飲食</button></div>`;
+  // 喝水
+  const wg = goalOf('water');
+  h += `<div class="card"><h2>喝水</h2><div class="between">
+    <button class="btn ghost" data-act="add" data-k="water" data-v="-250">−</button>
+    <div style="text-align:center"><span class="big" style="font-size:32px">${td.water || 0}</span><span class="muted"> / ${wg} ml</span></div>
+    <button class="btn" data-act="add" data-k="water" data-v="250">＋</button></div>${bar(td.water || 0, wg, 'var(--shot)')}
+    <div class="note" style="text-align:center;margin-top:2px">每按一下 250 ml(一杯)</div></div>`;
+  // 活動與睡眠
+  h += `<div class="card"><h2>活動與睡眠 <small>${S.settings.hkKey ? (S.settings.hkLast ? '健康資料 ' + fmtDT(S.settings.hkLast) : '尚未收到健康資料') : '<a href="#" data-act="goHk" style="color:var(--accent)">連動 iPhone 健康 ›</a>'}</small></h2>
+    <div class="act3"><div><div class="n">${td.steps != null ? td.steps.toLocaleString() : '—'}</div><div class="k">👣 步數</div></div>
+    <div><div class="n">${td.sleep != null ? f1(td.sleep) : '—'}</div><div class="k">😴 睡眠(小時)</div></div>
+    <div><div class="n">${td.steps != null ? Math.round(td.steps / goalOf('steps') * 100) + '%' : '—'}</div><div class="k">步數目標</div></div></div>
+    <div class="between" style="margin-top:12px"><span class="sub">手動填昨晚睡眠</span><div class="row">
+      <button class="btn ghost small" data-act="sleep" data-v="-0.5">−0.5</button><button class="btn ghost small" data-act="sleep" data-v="0.5">+0.5</button></div></div></div>`;
+  h += `<div class="card"><h2>今天的身體狀況 <small>點選即記錄</small></h2>
+    <div class="chips">${FX.map(f => `<button class="chip ${td.fx.includes(f) ? 'on' : ''}" data-act="fx" data-v="${esc(f)}">${f}</button>`).join('')}</div>
+    <div class="note">嚴重腹痛(痛到背後)、持續嘔吐無法進食喝水、皮膚眼白變黃,請盡快就醫。</div></div>`;
+  h += guideCard('📖 打針與飲食注意事項');
+  return h;
+}
+
+// ---------- 藥物記錄:施打 / 筆與花費 / 營養品 ----------
+const money = n => 'NT$ ' + Math.round(n || 0).toLocaleString();
+function penTotal(id) { return S.shots.filter(s => s.penId === id).reduce((a, s) => a + (s.dose || 0), 0); }
+function penStatus() {
+  const p = S.purchases.find(x => x.id === S.activePen?.id); if (!p) return null;
+  const used = penTotal(p.id), left = Math.max(0, Math.round((p.totalMg - used) * 100) / 100);
+  const usual = lastShot()?.dose || p.mgPerDose;
+  return { p, used, left, n: S.shots.filter(s => s.penId === p.id).length, doses: usual ? Math.floor(left / usual + 1e-9) : null, usual };
+}
+function usedValue() { return S.shots.reduce((a, x) => { const p = S.purchases.find(q => q.id === x.penId); return a + (p && p.totalMg ? (x.dose || 0) * p.price / p.totalMg : 0); }, 0); }
+function spend() {
+  const pens = S.purchases.reduce((a, p) => a + (p.price || 0), 0), supps = S.supps.reduce((a, p) => a + (p.price || 0), 0);
+  const mg = S.purchases.reduce((a, p) => a + (p.totalMg || 0), 0);
+  return { pens, supps, mg, all: pens + supps };
+}
+
+function viewMed() {
+  const seg = `<div class="seg" style="margin-bottom:12px">${[['shot', '💉 施打'], ['pen', '🖊️ 筆與花費'], ['supp', '💊 營養品']].map(([v, t]) => `<button data-act="medSeg" data-v="${v}" class="${ui.medSeg === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+  return seg + ({ shot: viewShot, pen: viewPen, supp: viewSupp })[ui.medSeg]();
+}
+
+function viewShot() {
+  const st = S.settings, d = DRUGS[st.drug] || DRUGS.other, ls = lastShot(), all = shotsSorted();
+  if (ui.dose == null && !ui.customDose) { ui.dose = ls?.dose ?? DOSES[0]; ui.customDose = !DOSES.includes(ui.dose); }
+  if (ui.site == null) ui.site = suggestSite();
+  const sugg = suggestSite(), usedAt = siteUsedAt(), ps = penStatus();
+  const totalMg = all.reduce((a, s) => a + (s.dose || 0), 0);
+  const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
+  let h = `<div class="card"><h2>用藥總計</h2><div class="stats">
+    <div class="stat"><div class="k">總共打了</div><div class="n">${all.length}<small>次</small></div></div>
+    <div class="stat"><div class="k">累計劑量</div><div class="n">${+totalMg.toFixed(2)}<small>mg</small></div></div>
+    <div class="stat"><div class="k">目前劑量</div><div class="n">${ls ? ls.dose : '—'}<small>mg / ${st.interval === 7 ? '每週' : `每 ${st.interval} 天`}</small></div></div>
+    <div class="stat"><div class="k">本月</div><div class="n">${all.filter(s => s.ts >= m0.getTime()).length}<small>次</small></div></div></div></div>`;
+  h += `<div class="card"><h2>記錄施打 <small>${esc(d.name)}</small></h2>
+    <label class="f">時間</label><input class="in" id="sTs" type="datetime-local" value="${toInput(Date.now())}">
+    <label class="f">劑量${ls ? ` <span class="muted">· 上次 ${ls.dose ?? '?'} mg</span>` : ''}</label>
+    <div class="chips">${DOSES.map(x => `<button class="chip ${!ui.customDose && ui.dose === x ? 'on' : ''}" data-act="dose" data-v="${x}">${x} mg</button>`).join('')}
+      <button class="chip ${ui.customDose ? 'on' : ''}" data-act="customDose">自訂劑量</button></div>
+    <div id="customBox" style="display:${ui.customDose ? 'flex' : 'none'};margin-top:8px" class="row"><input class="in" id="sDose" type="number" inputmode="decimal" step="0.01" placeholder="輸入劑量" value="${ui.customDose && ui.dose != null ? ui.dose : ''}"><span class="muted">mg</span></div>
+    <label class="f">注射部位 <span class="muted">· 虛線框 = 建議這次打的地方(輪替避免硬塊)</span></label>
+    <div class="grid2">${allSites().map(([id, a, b]) => `<button class="site ${ui.site === id ? 'on' : ''} ${sugg === id ? 'sugg' : ''}" data-act="site" data-v="${id}"><b>${esc(a)}${esc(b)}</b><span class="ago">${usedAt[id] ? `上次 ${fmtDate(usedAt[id])}` : '還沒打過'}</span></button>`).join('')}
+      <button class="site" data-act="addSite" style="border:1px dashed var(--muted)"><b>＋ 新增部位</b><span class="ago">自己取名字</span></button></div>
+    ${S.customSites.length ? `<div class="chips" style="margin-top:8px">${S.customSites.map(c => `<span class="chip" style="font-size:12px">${esc(c.name)} <button data-act="delSite" data-id="${c.id}" style="color:var(--muted);margin-left:2px">✕</button></span>`).join('')}</div>` : ''}
+    <label class="f">備註</label><input class="in" id="sNote" placeholder="例如:換新劑量、打完有點痛">
+    <button class="btn block" style="margin-top:14px" data-act="saveShot">✓ 儲存施打紀錄</button>
+    <div class="note">${ps ? `會從使用中的筆扣掉劑量(目前剩 ${ps.left} mg)。` : '還沒有「使用中」的筆,到「🖊️ 筆與花費」新增並開始使用,就能自動算剩多少。'}</div></div>`;
+  const list = [...all].reverse();
+  h += `<div class="card"><h2>施打紀錄 <small>共 ${list.length} 次</small></h2>${list.length ? `<div class="list">${list.map(s => `
+    <div class="item"><div class="grow"><div class="v">${s.dose ?? '?'} mg · ${esc(siteName(s.site)) || '—'}</div>
+    <div class="t">${fmtDT(s.ts)} · ${esc(DRUGS[s.drug]?.name || '')}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
+    <button class="x" data-act="delShot" data-id="${s.id}">✕</button></div>`).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
+  h += guideCard('📖 打針注意事項', ['💉 打針前', '📍 打針時', '🧊 打針後與保存']);
+  return h;
+}
+
+function viewPen() {
+  const ps = penStatus(), sp = spend(), ws = weightsSorted(), sw = startWeight(), lw = ws[ws.length - 1];
+  const lost = sw != null && lw ? sw - lw.kg : 0;
+  const first = S.purchases.length ? Math.min(...S.purchases.map(p => p.ts)) : null;
+  const weeks = first ? (Date.now() - first) / (7 * DAY) : 0;
+  let h = `<div class="card"><h2>🖊️ 手上這支筆</h2>${ps ? `
+    <div class="between"><div><div class="big">${ps.left}<small>mg 剩下</small></div>
+    <div class="sub">${fmtFull(ps.p.ts)} 買的 ${ps.p.mgPerDose} mg 筆 · 總量 ${ps.p.totalMg} mg · 已打 ${ps.n} 次共 ${+ps.used.toFixed(2)} mg</div></div></div>
+    ${bar(ps.left, ps.p.totalMg, ps.left <= (ps.usual || 0) ? 'var(--warn)' : 'var(--shot)')}
+    <div class="between sub"><span>以 ${ps.usual} mg 計算,還能打 <b>${ps.doses ?? '—'}</b> 次</span>${ps.doses != null ? `<span>${ps.doses <= 1 ? '<span class="pill warn">該準備下一支了</span>' : `約到 ${fmtDate(Date.now() + ps.doses * (S.settings.interval || 7) * DAY)}`}</span>` : ''}</div>
+    <div class="row" style="margin-top:12px"><button class="btn ghost small" data-act="adjPen">修正剩餘量</button><button class="btn ghost small" data-act="endPen">這支用完了</button></div>`
+    : `<div class="empty">還沒有使用中的筆。<br>在下面「記錄買筆」填好,勾「現在開始用這支」。</div>`}</div>`;
+  h += `<div class="card"><h2>💰 花費總計</h2><div class="stats">
+    <div class="stat"><div class="k">瘦瘦筆</div><div class="n" style="font-size:18px">${money(sp.pens)}</div></div>
+    <div class="stat"><div class="k">營養品</div><div class="n" style="font-size:18px">${money(sp.supps)}</div></div>
+    <div class="stat"><div class="k">平均每 mg</div><div class="n" style="font-size:18px">${sp.mg ? money(sp.pens / sp.mg) : '—'}</div></div>
+    <div class="stat"><div class="k">已打掉的價值</div><div class="n" style="font-size:18px">${money(usedValue())}</div></div></div>
+    ${weeks >= 4 ? `<div class="note">開始買筆至今平均每週 ${money(sp.pens / weeks)}。</div>` : ''}
+    <div class="between" style="margin-top:12px"><b>從頭到尾總共</b><b style="font-size:22px;color:var(--accent)">${money(sp.all)}</b></div>
+    ${lost > 0.5 && sp.pens ? `<div class="note">目前減了 ${f1(lost)} kg,平均每減 1 公斤花 ${money(sp.pens / lost)}(只算筆)。</div>` : ''}</div>`;
+  const pp = ui.penForm;
+  h += `<div class="card"><h2>＋ 記錄買筆</h2>
+    <div class="grid2"><div><label class="f">購買日期</label><input class="in" id="pDate" type="date" value="${dayKey(Date.now())}"></div>
+    <div><label class="f">金額 NT$</label><input class="in" id="pPrice" type="number" inputmode="numeric" placeholder="例如 6000"></div></div>
+    <label class="f">筆的劑量(每劑)</label>
+    <div class="chips">${DOSES.map(x => `<button class="chip ${pp.mg === x ? 'on' : ''}" data-act="pMg" data-v="${x}">${x} mg</button>`).join('')}</div>
+    <div class="grid3"><div><label class="f">幾劑</label><input class="in" id="pDoses" type="number" inputmode="numeric" value="${pp.doses}"></div>
+    <div><label class="f">總量 mg</label><input class="in" id="pTotal" type="number" inputmode="decimal" step="0.01" value="${+(pp.mg * pp.doses).toFixed(2)}"></div>
+    <div><label class="f">數量(支)</label><input class="in" id="pQty" type="number" inputmode="numeric" value="1"></div></div>
+    <label class="f">在哪買(選填)</label><input class="in" id="pPlace" placeholder="例如:○○診所">
+    <label class="row" style="margin-top:12px;font-size:14px"><input type="checkbox" id="pUse" ${ps ? '' : 'checked'} style="width:20px;height:20px"> 現在開始用這支</label>
+    <button class="btn block" style="margin-top:12px" data-act="savePen">✓ 儲存</button>
+    <div class="note">猛健樂 KwikPen 一支 4 劑,總量 = 每劑 × 4。買多支時金額填「全部的總價」,會拆成每支一筆。</div></div>`;
+  const list = [...S.purchases].sort((a, b) => b.ts - a.ts);
+  h += `<div class="card"><h2>買筆紀錄 <small>共 ${list.length} 支</small></h2>${list.length ? `<div class="list">${list.map(p => {
+    const active = S.activePen?.id === p.id, used = penTotal(p.id);
+    const tag = active ? '<span class="pill ok">使用中</span>' : p.done || used >= p.totalMg - 0.01 ? '<span class="pill">已用完</span>' : used > 0 ? '<span class="pill warn">用過</span>' : '<span class="pill">未開封</span>';
+    return `<div class="item"><div class="grow"><div class="v">${p.mgPerDose} mg × ${p.doses} 劑 · ${money(p.price)} ${tag}</div>
+      <div class="t">${fmtFull(p.ts)}${p.place ? ' · ' + esc(p.place) : ''} · 已用 ${+used.toFixed(2)} / ${p.totalMg} mg</div></div>
+      ${!active ? `<button class="btn ghost small" data-act="usePen" data-id="${p.id}">開始用</button>` : ''}<button class="x" data-act="delPen" data-id="${p.id}">✕</button></div>`;
+  }).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
+  return h;
+}
+
+function viewSupp() {
+  const list = [...S.supps].sort((a, b) => b.ts - a.ts), sp = spend();
+  const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
+  const month = S.supps.filter(s => s.ts >= m0.getTime()).reduce((a, s) => a + (s.price || 0), 0);
+  const by = {}; for (const s of S.supps) { const k = s.name || '未命名'; by[k] = (by[k] || 0) + (s.price || 0); }
+  const names = [...new Set(S.supps.map(s => s.name).filter(Boolean))];
+  let h = `<div class="card"><h2>💊 營養品花費</h2><div class="stats">
+    <div class="stat"><div class="k">總共花了</div><div class="n" style="font-size:18px">${money(sp.supps)}</div></div>
+    <div class="stat"><div class="k">本月</div><div class="n" style="font-size:18px">${money(month)}</div></div></div>
+    ${Object.keys(by).length ? `<div class="list" style="margin-top:8px">${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([n, v]) => `<div class="item"><div class="grow">${esc(n)}</div><div class="v">${money(v)}</div></div>`).join('')}</div>` : ''}</div>`;
+  h += `<div class="card"><h2>＋ 記錄購買</h2>
+    <label class="f">品名</label><input class="in" id="uName" list="suppNames" placeholder="例如:乳清蛋白、益生菌、B 群"><datalist id="suppNames">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    <div class="grid3"><div><label class="f">日期</label><input class="in" id="uDate" type="date" value="${dayKey(Date.now())}" style="padding:11px 6px;font-size:14px"></div>
+    <div><label class="f">數量/規格</label><input class="in" id="uQty" placeholder="2 罐"></div>
+    <div><label class="f">金額 NT$</label><input class="in" id="uPrice" type="number" inputmode="numeric"></div></div>
+    <label class="f">在哪買(選填)</label><input class="in" id="uPlace" placeholder="例如:momo、好市多">
+    <button class="btn block" style="margin-top:12px" data-act="saveSupp">✓ 儲存</button></div>`;
+  h += `<div class="card"><h2>購買紀錄 <small>共 ${list.length} 筆</small></h2>${list.length ? `<div class="list">${list.map(s => `<div class="item"><div class="grow"><div class="v">${esc(s.name)} · ${money(s.price)}</div>
+    <div class="t">${fmtFull(s.ts)}${s.qty ? ' · ' + esc(s.qty) : ''}${s.place ? ' · ' + esc(s.place) : ''}</div></div><button class="x" data-act="delSupp" data-id="${s.id}">✕</button></div>`).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
+  return h;
+}
+
+function medClick(act, b, v) {
+  if (act === 'medSeg') { ui.medSeg = v; render(); return true; }
+  if (act === 'addSite') {
+    const n = (prompt('新增注射部位名稱(例如:臀部左、腰側右):') || '').trim(); if (!n) return true;
+    const id = 'c' + uid(); S.customSites.push({ id, name: n }); ui.site = id; save(); render(); return true;
+  }
+  if (act === 'delSite') {
+    const c = S.customSites.find(x => x.id === b.dataset.id);
+    if (c && confirm(`刪除自訂部位「${c.name}」?(舊紀錄仍會保留名稱)`)) { S.customSites = S.customSites.filter(x => x !== c); if (ui.site === c.id) ui.site = null; save(); render(); }
+    return true;
+  }
+  if (act === 'pMg') { ui.penForm.mg = +v; ui.penForm.doses = num($('#pDoses').value) || 4; render(); return true; }
+  if (act === 'savePen') {
+    const doses = num($('#pDoses').value) || 4, total = num($('#pTotal').value) || ui.penForm.mg * doses;
+    const qty = Math.max(1, Math.round(num($('#pQty').value) || 1)), price = num($('#pPrice').value);
+    const ts = new Date($('#pDate').value + 'T12:00').getTime() || Date.now();
+    if (price == null) return toast('請填金額'), true;
+    let firstId;
+    for (let i = 0; i < qty; i++) {
+      const id = uid() + i; firstId = firstId || id;
+      S.purchases.push({ id, ts, mgPerDose: ui.penForm.mg, doses, totalMg: total, price: price / qty, place: $('#pPlace').value.trim() });
+    }
+    if ($('#pUse').checked) S.activePen = { id: firstId, since: Date.now() };
+    save(); render(); toast(qty > 1 ? `已記錄 ${qty} 支` : '已記錄'); return true;
+  }
+  if (act === 'usePen') { S.activePen = { id: b.dataset.id, since: Date.now() }; save(); render(); toast('已設為使用中'); return true; }
+  if (act === 'endPen') { const p = S.purchases.find(x => x.id === S.activePen?.id); if (p) p.done = true; S.activePen = null; save(); render(); return true; }
+  if (act === 'adjPen') {
+    const ps = penStatus(); const n = num(prompt('實際還剩幾 mg?', ps.left)); if (n == null) return true;
+    ps.p.totalMg = Math.round((ps.used + n) * 100) / 100; save(); render(); return true;
+  }
+  if (act === 'delPen') {
+    if (!confirm('刪除這筆買筆紀錄?')) return true;
+    S.purchases = S.purchases.filter(p => p.id !== b.dataset.id); if (S.activePen?.id === b.dataset.id) S.activePen = null; save(); render(); return true;
+  }
+  if (act === 'saveSupp') {
+    const name = $('#uName').value.trim(), price = num($('#uPrice').value);
+    if (!name || price == null) return toast('請填品名和金額'), true;
+    S.supps.push({ id: uid(), ts: new Date($('#uDate').value + 'T12:00').getTime() || Date.now(), name, qty: $('#uQty').value.trim(), price, place: $('#uPlace').value.trim() });
+    save(); render(); toast('已記錄'); return true;
+  }
+  if (act === 'delSupp') { if (confirm('刪除這筆營養品紀錄?')) { S.supps = S.supps.filter(s => s.id !== b.dataset.id); save(); render(); } return true; }
+  return false;
+}
+
+function viewBody() {
+  const lw = latestWeight(), lf = latestOf('fat'), lm = latestOf('muscle');
+  const unitT = (k, cur) => `<span class="unit">${['kg', '%'].map(u => `<button data-act="unit" data-k="${k}" data-v="${u}" class="${cur === u ? 'on' : ''}">${u}</button>`).join('')}</span>`;
+  let h = `<div class="card"><h2>身體測量</h2>
+    <label class="f">時間</label><input class="in" id="wTs" type="datetime-local" value="${toInput(Date.now())}">
+    <label class="f">⚖️ 體重 kg</label><input class="in" id="wKg" type="number" inputmode="decimal" step="0.1" placeholder="${lw ? f1(lw.kg) : ''}">
+    <div class="between" style="margin-top:12px"><label class="f" style="margin:0">💧 體脂肪(選填)</label>${unitT('fat', ui.fatU)}</div>
+    <input class="in" id="wFat" style="margin-top:6px" type="number" inputmode="decimal" step="0.1" placeholder="${lf ? (ui.fatU === '%' ? f1(lf.fat) : f1(lf.fat * lf.kg / 100)) : ''}"><div class="conv" id="fatConv"></div>
+    <div class="between" style="margin-top:4px"><label class="f" style="margin:0">💪 骨骼肌(選填)</label>${unitT('mus', ui.musU)}</div>
+    <input class="in" id="wMus" style="margin-top:6px" type="number" inputmode="decimal" step="0.1" placeholder="${lm ? (ui.musU === 'kg' ? f1(lm.muscle) : f1(lm.muscle / lm.kg * 100)) : ''}"><div class="conv" id="musConv"></div>
+    <div class="grid2"><div><label class="f">📏 腰圍 cm(選填)</label><input class="in" id="wWaist" type="number" inputmode="decimal" step="0.1"></div>
+    <div><label class="f">📐 身高 cm(選填)</label><input class="in" id="wH" type="number" inputmode="decimal" step="0.1" placeholder="${heightNow() ?? ''}"></div></div>
+    <button class="btn block" style="margin-top:14px" data-act="saveBody">✓ 儲存</button></div>`;
+  const list = weightsSorted().reverse();
+  h += `<div class="card"><h2>體重紀錄 <small>共 ${list.length} 筆</small></h2>${list.length ? `<div class="list">${list.slice(0, ui.wShow).map((w, i) => {
+    const prev = list[i + 1], diff = prev ? w.kg - prev.kg : null;
+    return `<div class="item"><div class="grow"><div class="v">${f1(w.kg)} kg ${diff != null ? `<span class="pill ${diff <= 0 ? 'ok' : 'warn'}" style="font-size:11px">${diff <= 0 ? '−' : '+'}${f1(Math.abs(diff))}</span>` : ''}</div>
+    <div class="t">${fmtDT(w.ts)}${w.fat != null ? ` · 體脂 ${f1(w.fat)}%` : ''}${w.muscle != null ? ` · 骨骼肌 ${f1(w.muscle)} kg` : ''}${w.waist != null ? ` · 腰圍 ${w.waist}` : ''}</div></div>
+    <button class="x" data-act="delWeight" data-id="${w.id}">✕</button></div>`;
+  }).join('')}</div>${list.length > ui.wShow ? `<button class="btn ghost block small" style="margin-top:8px" data-act="more">顯示更多</button>` : ''}` : '<div class="empty">還沒有紀錄</div>'}</div>`;
+  const hs = [...S.heights].sort((a, b) => b.ts - a.ts);
+  h += `<div class="card"><h2>身高紀錄 <small>BMI 用最新一筆</small></h2>${hs.length ? `<div class="list">${hs.map(x => `<div class="item"><div class="grow"><div class="v">${f1(x.cm)} cm</div><div class="t">${fmtFull(x.ts)}</div></div><button class="x" data-act="delHeight" data-id="${x.id}">✕</button></div>`).join('')}</div>` : '<div class="empty">在上面填身高就會記錄</div>'}</div>`;
+  return h;
+}
+
+function lastNDays(n) { const out = []; for (let i = n - 1; i >= 0; i--) { const t = startOfDay(Date.now()) - i * DAY; const d = new Date(t); out.push({ k: dayKey(t), label: `${d.getMonth() + 1}/${d.getDate()}` }); } return out; }
+
+function viewStats() {
+  const ws = weightsSorted(), ss = shotsSorted();
+  let h = `<div class="seg" style="margin-bottom:12px">${[[30, '1 個月'], [90, '3 個月'], [180, '半年'], [0, '全部']].map(([v, t]) => `<button data-act="range" data-v="${v}" class="${ui.range === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+  const sw = startWeight(), lw = ws[ws.length - 1];
+  const first = Math.min(ws[0]?.ts ?? Infinity, ss[0]?.ts ?? Infinity);
+  const weeks = isFinite(first) ? (Date.now() - first) / (7 * DAY) : 0;
+  const p = projection();
+  const pctRate = p && lw ? p.weekly / lw.kg * 100 : null;
+  h += `<div class="card"><h2>總覽</h2><div class="stats">
+    <div class="stat"><div class="k">累計減少</div><div class="n">${sw != null && lw ? f1(sw - lw.kg) : '—'}<small>kg</small></div></div>
+    <div class="stat"><div class="k">開始至今</div><div class="n">${weeks ? Math.floor(weeks) : '—'}<small>週</small></div></div>
+    <div class="stat"><div class="k">近期每週減</div><div class="n">${p ? f1(p.weekly) : '—'}<small>kg</small></div></div>
+    <div class="stat"><div class="k">預計達標</div><div class="n" style="font-size:16px;padding-top:4px">${p?.done ? '已達標 🎉' : p?.eta ? fmtFull(p.eta) : '—'}</div></div>
+  </div>${projHtml(p)}${pctRate != null && pctRate > 0 ? `<div class="note">${pctRate > 1.5 ? '⚠️ 每週減超過體重 1.5%,速度偏快,記得吃夠蛋白質、注意肌肉流失。' : pctRate >= 0.5 ? '👍 每週減 0.5–1.5% 體重,屬於穩定的速度。' : '近期變化較慢,可能是平台期,可以和醫師討論。'}</div>` : ''}</div>`;
+  if (ws.length) h += `<div class="card"><h2>體重趨勢</h2><canvas class="chart" id="cWeight"></canvas>
+    <div class="legend"><span><i style="background:var(--weight)"></i>每次量測</span><span><i style="background:var(--avg)"></i>7 日平均</span><span><i style="background:var(--shot)"></i>施打 (mg)</span></div></div>`;
+  if (ws.some(w => w.fat != null || w.muscle != null)) h += `<div class="card"><h2>體組成 <small>體脂肪 kg / 骨骼肌 kg</small></h2><canvas class="chart" id="cComp" style="height:180px"></canvas>
+    <div class="legend"><span><i style="background:var(--bad)"></i>體脂肪</span><span><i style="background:var(--shot)"></i>骨骼肌</span></div><div class="note">減重時骨骼肌盡量維持不掉,代表減的是脂肪。</div></div>`;
+  if (ss.some(s => DRUGS[s.drug]?.half)) h += `<div class="card"><h2>估計體內藥量 <small>mg,含未來 7 天</small></h2><canvas class="chart" id="cLevel" style="height:170px"></canvas>
+    <div class="note">用藥品半衰期粗略推算,不是實際血中濃度,只用來看「打完哪幾天藥效比較強」。</div></div>`;
+  // 飲食、睡眠、步數:近 14 天
+  const days = lastNDays(14);
+  const avg = arr => { const v = arr.filter(x => x != null && x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const kc = days.map(d => nutTotals(d.k)), sl = days.map(d => S.daily[d.k]?.sleep ?? null), stp = days.map(d => S.daily[d.k]?.steps ?? null);
+  const aK = avg(kc.map(x => x.kcal)), aP = avg(kc.map(x => x.protein)), aS = avg(sl), aT = avg(stp);
+  h += `<div class="card"><h2>近 14 天平均</h2><div class="stats">
+    <div class="stat"><div class="k">🔥 熱量</div><div class="n">${aK ? r0(aK) : '—'}<small>大卡</small></div></div>
+    <div class="stat"><div class="k">🐟 蛋白質</div><div class="n">${aP ? r0(aP) : '—'}<small>/ ${proteinGoal()} g</small></div></div>
+    <div class="stat"><div class="k">😴 睡眠</div><div class="n">${aS ? f1(aS) : '—'}<small>小時</small></div></div>
+    <div class="stat"><div class="k">👣 步數</div><div class="n">${aT ? r0(aT).toLocaleString() : '—'}<small>步</small></div></div></div><div class="note">只算有記錄的天數。</div></div>`;
+  if (aS) h += `<div class="card"><h2>每日睡眠 <small>小時,虛線 = 目標 ${S.settings.sleepGoal}</small></h2><canvas class="chart" id="cSleep" style="height:160px"></canvas></div>`;
+  if (aT) h += `<div class="card"><h2>每日步數 <small>虛線 = 目標 ${goalOf('steps').toLocaleString()}</small></h2><canvas class="chart" id="cSteps" style="height:160px"></canvas></div>`;
+  if (aP) h += `<div class="card"><h2>每日蛋白質 <small>g,虛線 = 目標</small></h2><canvas class="chart" id="cProt" style="height:160px"></canvas></div>`;
+  const from = ui.range ? Date.now() - ui.range * DAY : 0;
+  const cnt = {}; let fd = 0;
+  for (const [k, v] of Object.entries(S.daily)) { if (new Date(k + 'T00:00').getTime() < from - DAY || !v.fx?.length) continue; fd++; v.fx.forEach(f => cnt[f] = (cnt[f] || 0) + 1); }
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
+  if (top.length) h += `<div class="card"><h2>身體狀況 <small>有記錄的 ${fd} 天中</small></h2><div class="list">${top.map(([f, n]) => `<div class="item"><div class="grow">${esc(f)}</div><div class="v">${n} 天</div></div>`).join('')}</div></div>`;
+  const steps = []; for (const s of ss) { const l = steps[steps.length - 1]; if (!l || l.dose !== s.dose || l.drug !== s.drug) steps.push({ dose: s.dose, drug: s.drug, ts: s.ts, n: 1 }); else l.n++; }
+  if (steps.length) h += `<div class="card"><h2>劑量歷程</h2><div class="list">${steps.reverse().map(s => `<div class="item"><div class="grow"><div class="v">${s.dose ?? '?'} mg</div><div class="t">${fmtDate(s.ts)} 起 · ${esc(DRUGS[s.drug]?.name || '')}</div></div><div class="sub">${s.n} 次</div></div>`).join('')}</div></div>`;
+  if (!ws.length && !ss.length && !aK && !aS && !aT) h += '<div class="card"><div class="empty">有了紀錄之後,這裡會出現趨勢圖。</div></div>';
+  return h;
+}
+
+function viewSet() {
+  const st = S.settings;
+  const opt = (v, t, cur) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${t}</option>`;
+  const inp = (k, label, ph, step = 'any', mode = 'decimal') => `<div><label class="f">${label}</label><input class="in" data-set="${k}" type="number" inputmode="${mode}" step="${step}" value="${st[k] ?? ''}" placeholder="${ph ?? ''}"></div>`;
+  const base = (st.hkKey || '').trim().replace(/\/+$/, '');
+  return `<div class="card"><h2>我的目標</h2>
+    <div class="grid3"><div><label class="f">身高 cm</label><input class="in" id="setH" type="number" inputmode="decimal" value="${heightNow() ?? ''}"></div>
+    ${inp('startWeight', '起始體重', weightsSorted()[0] ? f1(weightsSorted()[0].kg) : '', '0.1')}${inp('goalWeight', '目標體重', '', '0.1')}</div>
+    <label class="f">🎯 預計達成日期(選填)</label><input class="in" data-set="goalDate" type="date" value="${st.goalDate ?? ''}">
+    <div class="note">起始體重留空 = 自動用第一筆體重。改身高會新增一筆身高紀錄。填了目標日期,首頁會告訴你每週要減多少、來不來得及。</div></div>
+  <div class="card"><h2>💉 用藥設定</h2>
+    <label class="f">藥品</label><select class="in" data-set="drug">${Object.entries(DRUGS).map(([k, d]) => opt(k, d.name + (d.gen ? `(${d.gen})` : ''), st.drug)).join('')}</select>
+    ${inp('interval', '幾天打一次', '', '1', 'numeric')}
+    <div class="note">買筆、剩餘劑量在「💊 藥物 → 🖊️ 筆與花費」。</div></div>
+  <div class="card" id="remind"><h2>⏰ 提醒</h2>
+    <b style="font-size:14px">💉 打針</b>
+    ${weekly() ? `<div class="grid2"><div><label class="f">每週星期幾</label><select class="in" data-set="shotDow">${WDN.map((w, i) => opt(i, '星期' + w, st.shotDow)).join('')}</select></div>
+    <div><label class="f">時間</label><input class="in" data-set="shotTime" type="time" value="${st.shotTime}"></div></div>`
+    : `<div><label class="f">時間</label><input class="in" data-set="shotTime" type="time" value="${st.shotTime}"></div>`}
+    <div class="grid2" style="margin-top:10px"><button class="btn ghost small" data-act="cal" data-k="shot" data-v="g">加到 Google 日曆</button><button class="btn ghost small" data-act="cal" data-k="shot" data-v="i">加到 iPhone 行事曆</button></div>
+    <div style="border-top:1px solid var(--hair);margin:14px 0 10px"></div>
+    <div class="between"><b style="font-size:14px">🩺 每月月底回診</b><label class="row" style="font-size:13px"><input type="checkbox" data-set="docOn" ${st.docOn ? 'checked' : ''} style="width:20px;height:20px">開啟</label></div>
+    <div class="grid2"><div><label class="f">時間</label><input class="in" data-set="docTime" type="time" value="${st.docTime}"></div>
+    <div><label class="f">診所/醫師(選填)</label><input class="in" data-set="docName" value="${esc(st.docName)}" placeholder="○○診所"></div></div>
+    <div class="grid2" style="margin-top:10px"><button class="btn ghost small" data-act="cal" data-k="doc" data-v="g">加到 Google 日曆</button><button class="btn ghost small" data-act="cal" data-k="doc" data-v="i">加到 iPhone 行事曆</button></div>
+    <div class="note">網頁 App 不能自己跳通知,加到行事曆後手機才會準時提醒。打針會在當下提醒;回診會在前一天和當天提醒。<b>改了時間要重新加一次</b>,並把行事曆裡舊的刪掉。</div></div>
+  <div class="card"><h2>每日目標</h2>
+    <div class="grid3">${inp('kcalGoal', '熱量 大卡', '', '1', 'numeric')}${inp('proteinGoal', '蛋白質 g', proteinGoal(), '1', 'numeric')}${inp('carbGoal', '碳水 g', '', '1', 'numeric')}
+    ${inp('fatGoal', '脂肪 g', '', '1', 'numeric')}${inp('fiberGoal', '纖維 g', '', '1', 'numeric')}${inp('waterGoal', '喝水 ml', '', '1', 'numeric')}
+    ${inp('sleepGoal', '睡眠 小時', '', '0.5')}${inp('stepsGoal', '步數', '', '1', 'numeric')}</div>
+    <div class="note">蛋白質留空 = 目標體重 × 1.2 g。實際需求請以醫師或營養師建議為準。</div></div>
+  <div class="card" id="hkCard"><h2>🍎 連動 iPhone 健康 <small>步數、睡眠</small></h2>
+    <div class="sub">網頁 App 不能直接讀「健康」,要用 iPhone「捷徑」每天把步數和睡眠送上來,打開 App 時會自動收進來。</div>
+    <label class="f">同步金鑰(跟血壓記錄 App 用的同一把)</label>
+    <input class="in" id="hkKey" style="font-size:13px" value="${esc(st.hkKey)}" placeholder="https://…firebasedatabase.app/f_…">
+    <div class="grid2" style="margin-top:10px"><button class="btn ghost" data-act="saveHk">儲存金鑰</button><button class="btn ghost" data-act="syncHk">立即同步</button></div>
+    ${st.hkLast ? `<div class="note">上次收到健康資料:${fmtDT(st.hkLast)}</div>` : ''}
+    ${base ? `<details class="how"><summary>捷徑怎麼設定?(第一次設定一次就好)</summary><ol>
+      <li>打開「捷徑」→ 下方「自動化」→ 右上 ＋ →「特定時間」→ 每天 <b>22:00</b> →「立即執行」。</li>
+      <li>加動作「<b>尋找健康樣本</b>」:類型「步數」、條件「開始日期 是 今天」。</li>
+      <li>加動作「<b>計算統計資料</b>」:總和。</li>
+      <li>加動作「<b>取得 URL 內容</b>」:<br>網址:<code>${esc(base)}/pen_health/</code> 後面接「目前日期」(自訂格式 <code>yyyyMMdd</code>) 再接 <code>_steps.json</code><br>方法 <b>PUT</b>、要求本文 <b>JSON</b>,加 3 個欄位:<code>t</code> = <code>steps</code>、<code>v</code> = 統計結果、<code>d</code> = 目前日期(格式 <code>yyyyMMdd</code>)</li>
+      <li>睡眠:再加「尋找健康樣本」類型「<b>睡眠分析</b>」、「開始日期 在過去 1 天內」、「值 是 睡著」→「取得 詳細資訊:持續時間」→「計算統計資料:總和」→ 同樣 PUT,只是網址結尾改 <code>_sleep.json</code>、<code>t</code> = <code>sleep</code>(秒、分鐘、小時都看得懂)。</li>
+      <li>先手動按一次執行,再回來按「立即同步」看有沒有收到。</li></ol>
+      <button class="btn ghost small block" data-act="copyBase">複製網址開頭</button></details>` : ''}</div>
+  <div class="card"><h2>外觀</h2><div class="seg">${[['auto', '跟系統'], ['light', '淺色'], ['dark', '深色']].map(([v, t]) => `<button data-act="theme" data-v="${v}" class="${st.theme === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>
+  <div class="card"><h2>備份 / 還原 <small>資料只存在這支手機</small></h2>
+    <div class="grid2"><button class="btn ghost" data-act="export">下載備份檔</button><button class="btn ghost" data-act="copy">複製備份文字</button></div>
+    <div class="grid2" style="margin-top:10px"><button class="btn ghost" data-act="import">從檔案還原</button><button class="btn ghost" data-act="paste">貼上文字還原</button></div>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    <div class="note">建議每個月備份一次。<b>不要</b>刪掉主畫面的圖示重加,iPhone 會連資料一起清掉。</div></div>
+  <div class="card"><div class="between"><span class="sub muted">版本 ${BUILD}</span><button class="btn ghost small" data-act="update">檢查更新</button></div>
+    <button class="btn danger block" style="margin-top:12px" data-act="wipe">清除全部資料</button></div>
+  <div class="note" style="text-align:center;padding-bottom:10px">本 App 僅供個人紀錄,不能取代醫療建議。劑量調整請遵照醫師指示。</div>`;
+}
+
+// ---------- 飲食面板 ----------
+function openFood() {
+  const h = new Date().getHours();
+  ui.food = { ts: Date.now(), meal: h < 10 ? '早餐' : h < 14 ? '午餐' : h < 17 ? '點心' : '晚餐', name: '', kcal: '', protein: '', carb: '', fat: '', fiber: '', serv: 1 };
+  renderSheet();
+}
+function renderSheet() {
+  const f = ui.food; if (!f) { $('#sheet').classList.remove('show'); $('#sheetBg').classList.remove('show'); return; }
+  $('#sheet').innerHTML = `<div class="sheet-head"><button class="btn ghost small" data-act="closeSheet">取消</button><h3>新增飲食記錄</h3><button class="btn small" data-act="saveFood">儲存</button></div>
+    <div class="card"><h2>📷 AI 拍照估算 <small>免費,不用金鑰</small></h2>
+      <div class="sub" style="line-height:1.7">① 按「複製 Prompt」② 打開下面任一個 AI,貼上並<b>附上食物照片</b> ③ 把 AI 回的整段文字複製,回來按「貼上 AI 回覆」</div>
+      <button class="btn block" style="margin-top:10px" data-act="copyPrompt">① 複製 Prompt</button>
+      <div class="ai-btns"><a class="btn ghost small" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a><a class="btn ghost small" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a><a class="btn ghost small" href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a></div>
+      <button class="btn ghost block" style="margin-top:10px" data-act="pasteAI">③ 貼上 AI 回覆</button>
+      <textarea class="in" id="aiText" style="margin-top:8px;min-height:60px;display:none" placeholder="自動貼上失敗的話,長按這裡貼上"></textarea></div>
+    <div class="card"><input class="in" id="fName" placeholder="食物名稱(選填)" value="${esc(f.name)}">
+      <label class="f">時間</label><input class="in" id="fTs" type="datetime-local" value="${toInput(f.ts)}">
+      <label class="f">餐次</label><div class="seg" id="fMeal">${MEALS.map(m => `<button data-act="meal" data-v="${m}" class="${m === f.meal ? 'on' : ''}">${m}</button>`).join('')}</div></div>
+    <div class="card"><h2>營養成分 <small>一份的量</small></h2>
+      ${NUTS.map(([n, t, u]) => `<div class="between" style="margin-top:6px"><span>${t}</span><div class="row"><input class="in" data-nut="${n}" style="width:110px;text-align:right;padding:8px 10px" type="number" inputmode="decimal" value="${f[n]}" placeholder="0"><span class="muted" style="width:34px;white-space:nowrap">${u === 'g' ? '克' : u}</span></div></div>`).join('')}
+      <div class="between" style="margin-top:14px"><span class="sub">份量</span><div class="row"><button class="btn ghost small" data-act="serv" data-v="-0.5">−</button><b id="servN" style="min-width:36px;text-align:center">${f.serv}</b><button class="btn ghost small" data-act="serv" data-v="0.5">＋</button><span class="muted">份</span></div></div>
+      <div class="note">儲存時會乘上份量。AI 估算會有誤差,特別是油和醬料,僅供參考。</div></div>`;
+  $('#sheet').classList.add('show'); $('#sheetBg').classList.add('show');
+}
+function readFoodForm() {
+  const f = ui.food; if (!f) return;
+  f.name = $('#fName').value; f.ts = new Date($('#fTs').value).getTime() || f.ts; f.meal = $('#fMeal .on')?.dataset.v || f.meal;
+  document.querySelectorAll('[data-nut]').forEach(i => f[i.dataset.nut] = i.value);
+}
+function parseAI(text) {
+  const m = String(text).match(/\{[\s\S]*?\}/); if (!m) throw new Error('找不到 { } 格式的內容');
+  let o; try { o = JSON.parse(m[0].replace(/[“”]/g, '"').replace(/,\s*}/, '}')); } catch (e) { throw new Error('格式看不懂'); }
+  const pick = (...ks) => { for (const k of ks) if (o[k] != null) { const n = num(String(o[k]).replace(/[^\d.]/g, '')); if (n != null) return n; } return ''; };
+  return { name: o.name || o['名稱'] || o.food || '', kcal: pick('kcal', 'calories', '熱量', '卡路里'), protein: pick('protein', '蛋白質'), carb: pick('carb', 'carbs', 'carbohydrate', '碳水', '碳水化合物'), fat: pick('fat', '脂肪'), fiber: pick('fiber', '纖維') };
+}
+function applyAI(text) {
+  try { readFoodForm(); Object.assign(ui.food, parseAI(text)); renderSheet(); toast('已帶入 AI 估算,確認後按儲存'); }
+  catch (e) { toast('讀不到:' + e.message); }
+}
+
+// ---------- iPhone 健康(經捷徑 → Firebase) ----------
+async function syncHealth(manual) {
+  const base = (S.settings.hkKey || '').trim().replace(/\/+$/, ''); if (!base) return manual && toast('請先貼上同步金鑰');
+  try {
+    const res = await fetch(base + '/pen_health.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? '金鑰沒有權限(是不是舊金鑰?)' : 'HTTP ' + res.status);
+    const data = await res.json() || {};
+    let n = 0;
+    for (const e of Object.values(data)) {
+      if (!e || typeof e !== 'object') continue;
+      const dm = /^(\d{4})(\d{2})(\d{2})/.exec(String(e.d || '')); let v = num(String(e.v ?? '').replace(/,/g, ''));
+      if (!dm || v == null || v < 0) continue;
+      const dd = dayData(`${dm[1]}-${dm[2]}-${dm[3]}`);
+      if (e.t === 'steps') { v = Math.round(v); if (dd.steps !== v) { dd.steps = v; n++; } }
+      else if (e.t === 'sleep') {
+        const hrs = Math.round((v > 1440 ? v / 3600 : v > 24 ? v / 60 : v) * 10) / 10; // 秒/分鐘/小時自動判斷
+        if (!dd.sleepManual && dd.sleep !== hrs && hrs <= 24) { dd.sleep = hrs; n++; }
+      }
+    }
+    if (Object.keys(data).length) S.settings.hkLast = Date.now();
+    save(); if (manual) toast(Object.keys(data).length ? `已同步,更新 ${n} 筆` : '連線成功,但還沒收到捷徑送來的資料');
+    if (ui.tab === 'home' || ui.tab === 'stats' || manual) render();
+  } catch (e) { if (manual) alert('同步失敗:' + e.message); }
+}
+
+function afterRender() {
+  if (ui.tab === 'body') convUpdate();
+  if (ui.tab !== 'stats') return;
+  const from = ui.range ? Date.now() - ui.range * DAY : -Infinity;
+  const wsAll = weightsSorted().filter(w => w.ts >= from), ws = wsAll.map(w => ({ x: w.ts, y: w.kg }));
+  const ss = shotsSorted().filter(s => s.ts >= from), mk = ss.map(s => ({ x: s.ts, label: s.dose ?? '' }));
+  const cw = $('#cWeight');
+  if (cw) {
+    if (ws.length) {
+      const x0 = Math.min(ws[0].x, ss[0]?.ts ?? Infinity), x1 = Math.max(ws[ws.length - 1].x, Date.now()), g = S.settings.goalWeight;
+      drawChart(cw, { x0, x1, yFmt: v => v.toFixed(1), goal: g && Math.min(...ws.map(p => p.y)) - g < 8 ? g : null,
+        series: [{ pts: ws, color: css('--weight'), width: 1.2, dots: 3, line: ws.length < 40 }, { pts: movingAvg(ws), color: css('--avg'), width: 2.5 }], markers: mk });
+    } else cw.outerHTML = '<div class="empty">這段期間沒有體重紀錄</div>';
+  }
+  const cc = $('#cComp');
+  if (cc) {
+    const fat = wsAll.filter(w => w.fat != null).map(w => ({ x: w.ts, y: w.fat * w.kg / 100 })), mus = wsAll.filter(w => w.muscle != null).map(w => ({ x: w.ts, y: w.muscle }));
+    const xs = [...fat, ...mus].map(p => p.x);
+    if (xs.length) drawChart(cc, { x0: Math.min(...xs), x1: Math.max(...xs, Date.now()), yFmt: v => v.toFixed(1), series: [{ pts: fat, color: css('--bad'), dots: 3 }, { pts: mus, color: css('--shot'), dots: 3 }] });
+    else cc.outerHTML = '<div class="empty">這段期間沒有體組成紀錄</div>';
+  }
+  const cl = $('#cLevel');
+  if (cl) {
+    const all = shotsSorted(), x0 = Math.max(all[0].ts, ui.range ? Date.now() - ui.range * DAY : 0), x1 = Date.now() + 7 * DAY;
+    const step = Math.max(3600000, (x1 - x0) / 240), pts = [];
+    for (let t = x0; t <= x1; t += step) pts.push({ x: t, y: levelAt(t) });
+    drawChart(cl, { x0, x1, zero: true, yFmt: v => v.toFixed(v < 10 ? 1 : 0), series: [{ pts, color: css('--level'), width: 2, fill: true }], markers: mk });
+  }
+  const days = lastNDays(14);
+  const sc = $('#cSleep'); if (sc) drawBars(sc, { bars: days.map(d => ({ label: d.label, y: S.daily[d.k]?.sleep })), goal: S.settings.sleepGoal, color: css('--weight'), yFmt: v => v.toFixed(0) });
+  const tc = $('#cSteps'); if (tc) drawBars(tc, { bars: days.map(d => ({ label: d.label, y: S.daily[d.k]?.steps })), goal: goalOf('steps'), color: css('--shot'), yFmt: v => v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v.toFixed(0) });
+  const pc = $('#cProt'); if (pc) drawBars(pc, { bars: days.map(d => ({ label: d.label, y: nutTotals(d.k).protein })), goal: proteinGoal(), color: css('--avg') });
+}
+
+// 體脂 / 骨骼肌 kg ↔ % 換算提示
+function convUpdate() {
+  const kg = num($('#wKg')?.value) ?? latestWeight()?.kg;
+  const fv = num($('#wFat')?.value), mv = num($('#wMus')?.value);
+  if ($('#fatConv')) $('#fatConv').textContent = fv != null && kg ? (ui.fatU === '%' ? `≈ ${f1(fv * kg / 100)} kg` : `≈ ${f1(fv / kg * 100)} %`) : '';
+  if ($('#musConv')) $('#musConv').textContent = mv != null && kg ? (ui.musU === 'kg' ? `≈ ${f1(mv / kg * 100)} %` : `≈ ${f1(mv * kg / 100)} kg`) : '';
+}
+
+// ---------- 動作 ----------
+function addWeight(rec) {
+  if (rec.kg == null || rec.kg < 20 || rec.kg > 400) { toast('體重數字怪怪的,再確認一下'); return false; }
+  S.weights.push(Object.assign({ id: uid() }, rec)); save(); toast(weightToast(rec.kg)); return true;
+}
+function addHeight(cm, ts = Date.now()) {
+  if (cm == null) return;
+  if (cm < 50 || cm > 250) return toast('身高數字怪怪的');
+  if (cm === heightNow()) return;
+  S.heights.push({ id: uid(), ts, cm }); save();
+}
+function localStamp(d) { return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`; }
+function addToCalendar(kind, where) {
+  const st = S.settings, tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Taipei';
+  let start, title, rrule, alarms;
+  if (kind === 'shot') {
+    start = new Date(nextShot()?.due ?? lastScheduled() + 7 * DAY);
+    title = '💉 該打針囉(加油日記)';
+    rrule = weekly() ? `RRULE:FREQ=WEEKLY;BYDAY=${['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][st.shotDow]}` : `RRULE:FREQ=DAILY;INTERVAL=${st.interval || 1}`;
+    alarms = ['PT0M'];
+  } else {
+    const nd = nextDoctor() || { due: monthEnd(new Date().getFullYear(), new Date().getMonth()) };
+    start = new Date(nd.due); title = '🩺 回診檢查' + (st.docName ? ' · ' + st.docName : '');
+    rrule = 'RRULE:FREQ=MONTHLY;BYMONTHDAY=-1'; alarms = ['-P1D', '-PT2H'];
+  }
+  const end = new Date(start.getTime() + (kind === 'shot' ? 15 : 60) * 60000);
+  if (where === 'g') {
+    window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) +
+      `&dates=${localStamp(start)}/${localStamp(end)}&ctz=${encodeURIComponent(tz)}&recur=${encodeURIComponent(rrule)}`, '_blank');
+  } else {
+    download(kind === 'shot' ? '打針提醒.ics' : '回診提醒.ics', ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//pen-log//TW', 'BEGIN:VEVENT', `UID:${uid()}@pen-log`,
+      `DTSTAMP:${utc(new Date())}`, `DTSTART;TZID=${tz}:${localStamp(start)}`, `DTEND;TZID=${tz}:${localStamp(end)}`, `SUMMARY:${title}`, rrule,
+      ...alarms.flatMap(t => ['BEGIN:VALARM', `TRIGGER:${t}`, 'ACTION:DISPLAY', `DESCRIPTION:${title}`, 'END:VALARM']), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n'), 'text/calendar');
+  }
+}
+function utc(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+function download(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function copyText(t, okMsg) { (navigator.clipboard?.writeText(t) || Promise.reject()).then(() => toast(okMsg), () => prompt('請手動複製:', t)); }
+function restore(text) {
+  try {
+    const d = JSON.parse(text); if (!d || !Array.isArray(d.weights) || !Array.isArray(d.shots)) throw new Error('格式不對');
+    if (!confirm(`要用備份取代目前資料嗎?\n備份內:體重 ${d.weights.length} 筆、施打 ${d.shots.length} 次`)) return;
+    localStorage.setItem(KEY, JSON.stringify(d)); load(); save(); applyTheme(); render(); toast('已還原');
+  } catch (e) { alert('還原失敗:' + e.message); }
+}
+async function checkUpdate(manual) {
+  try {
+    const t = await (await fetch('index.html?x=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const BUILD = '([^']+)'/);
+    if (m && m[1] !== BUILD) {
+      if (!$('.update')) { const b = document.createElement('div'); b.className = 'update'; b.textContent = '有新版本,點這裡更新'; b.onclick = hardReload; document.body.appendChild(b); }
+    } else if (manual) toast('已經是最新版');
+  } catch (e) { if (manual) toast('連不上網路'); }
+}
+async function hardReload() {
+  try { const rs = await navigator.serviceWorker?.getRegistrations(); for (const r of rs || []) await r.unregister(); for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+  location.reload();
+}
+function applyTheme() { const t = S.settings.theme; if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t; }
+
+document.addEventListener('click', e => {
+  const tabBtn = e.target.closest('[data-tab]');
+  if (tabBtn) { e.preventDefault(); ui.tab = tabBtn.dataset.tab; if (tabBtn.dataset.seg) ui.medSeg = tabBtn.dataset.seg; ui.dose = null; ui.customDose = false; ui.site = null; render(); scrollTo(0, 0); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const v = b.dataset.v, act = b.dataset.act;
+  if (medClick(act, b, v)) return;
+  if (act === 'cheer') { ui.cheer++; render(); return; }
+  if (b.tagName === 'A') e.preventDefault();
+  if (act === 'quickWeight') { if (addWeight({ ts: Date.now(), kg: num($('#qkg').value) })) render(); }
+  else if (act === 'add') { const td = today(); td[b.dataset.k] = Math.max(0, (td[b.dataset.k] || 0) + +v); save(); render(); }
+  else if (act === 'sleep') { const td = today(); td.sleep = Math.max(0, Math.min(24, (td.sleep ?? 7) + +v)); td.sleepManual = true; save(); render(); }
+  else if (act === 'fx') {
+    const td = today(), i = td.fx.indexOf(v);
+    if (i >= 0) td.fx.splice(i, 1); else { td.fx = v === '都很好 👍' ? [] : td.fx.filter(x => x !== '都很好 👍'); td.fx.push(v); }
+    save(); render();
+  }
+  else if (act === 'dose') { ui.dose = +v; ui.customDose = false; $('#customBox').style.display = 'none'; document.querySelectorAll('[data-act=dose],[data-act=customDose]').forEach(x => x.classList.toggle('on', x === b)); }
+  else if (act === 'customDose') { ui.customDose = true; $('#customBox').style.display = 'flex'; document.querySelectorAll('[data-act=dose],[data-act=customDose]').forEach(x => x.classList.toggle('on', x === b)); $('#sDose').focus(); }
+  else if (act === 'site') { ui.site = v; document.querySelectorAll('[data-act=site]').forEach(x => x.classList.toggle('on', x === b)); }
+  else if (act === 'saveShot') {
+    const dose = ui.customDose ? num($('#sDose').value) : ui.dose;
+    if (dose == null || dose <= 0) return toast(ui.customDose ? '請輸入自訂劑量' : '請選擇劑量');
+    const ts = new Date($('#sTs').value).getTime() || Date.now();
+    S.shots.push({ id: uid(), ts, drug: S.settings.drug, dose, site: ui.site, siteName: siteName(ui.site), penId: S.activePen?.id || null, note: $('#sNote').value.trim() });
+    const ps = penStatus(); save(); toast(ps && ps.left < dose ? '已記錄!這支筆快用完了,記得準備下一支' : '已記錄施打 💉 又完成一週,很棒!');
+    ui.tab = 'home'; ui.dose = null; ui.customDose = false; ui.site = null; render(); scrollTo(0, 0);
+  }
+  else if (act === 'delShot') { if (confirm('刪除這筆施打紀錄?')) { S.shots = S.shots.filter(s => s.id !== b.dataset.id); save(); render(); } }
+  else if (act === 'unit') {
+    if (b.dataset.k === 'fat') ui.fatU = v; else ui.musU = v;
+    b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); convUpdate();
+  }
+  else if (act === 'saveBody') {
+    const ts = new Date($('#wTs').value).getTime() || Date.now(), kg = num($('#wKg').value);
+    const fv = num($('#wFat').value), mv = num($('#wMus').value), hcm = num($('#wH').value);
+    if (kg == null && hcm != null) { addHeight(hcm, ts); toast('已記錄身高'); return render(); }
+    const fat = fv == null ? null : ui.fatU === '%' ? fv : fv / kg * 100;
+    const muscle = mv == null ? null : ui.musU === 'kg' ? mv : mv * kg / 100;
+    if (fat != null && (fat < 2 || fat > 75)) return toast('體脂肪數字怪怪的,看一下單位');
+    if (muscle != null && (muscle < 5 || muscle > kg)) return toast('骨骼肌數字怪怪的,看一下單位');
+    if (addWeight({ ts, kg, fat, muscle, waist: num($('#wWaist').value) })) { addHeight(hcm, ts); render(); }
+  }
+  else if (act === 'delWeight') { if (confirm('刪除這筆體重紀錄?')) { S.weights = S.weights.filter(w => w.id !== b.dataset.id); save(); render(); } }
+  else if (act === 'delHeight') { if (confirm('刪除這筆身高紀錄?')) { S.heights = S.heights.filter(w => w.id !== b.dataset.id); save(); render(); } }
+  else if (act === 'more') { ui.wShow += 30; render(); }
+  else if (act === 'range') { ui.range = +v; render(); }
+  else if (act === 'theme') { S.settings.theme = v; save(); applyTheme(); render(); }
+  else if (act === 'openFood') openFood();
+  else if (act === 'meal') { b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }
+  else if (act === 'closeSheet') { ui.food = null; renderSheet(); }
+  else if (act === 'serv') { readFoodForm(); ui.food.serv = Math.max(0.5, ui.food.serv + +v); $('#servN').textContent = ui.food.serv; }
+  else if (act === 'copyPrompt') copyText(AI_PROMPT, '已複製,到 AI 貼上並附照片');
+  else if (act === 'pasteAI') {
+    const ta = $('#aiText');
+    if (ta.style.display !== 'none' && ta.value.trim()) return applyAI(ta.value);
+    (navigator.clipboard?.readText?.() || Promise.reject()).then(t => applyAI(t), () => { ta.style.display = 'block'; ta.focus(); toast('請長按框框貼上,再按一次「貼上 AI 回覆」'); });
+  }
+  else if (act === 'saveFood') {
+    readFoodForm(); const f = ui.food, rec = { id: uid(), ts: f.ts, meal: f.meal, name: f.name.trim() };
+    for (const [n] of NUTS) rec[n] = Math.round((num(f[n]) || 0) * f.serv * 10) / 10;
+    if (!rec.name && !rec.kcal && !rec.protein) return toast('至少填名稱或熱量');
+    S.foods.push(rec); save(); ui.food = null; renderSheet(); render(); toast('已記錄飲食');
+  }
+  else if (act === 'delFood') { if (confirm('刪除這筆飲食?')) { S.foods = S.foods.filter(f => f.id !== b.dataset.id); save(); render(); } }
+  else if (act === 'goHk') { ui.tab = 'set'; render(); $('#hkCard').scrollIntoView(); }
+  else if (act === 'saveHk') { S.settings.hkKey = $('#hkKey').value.trim(); save(); render(); syncHealth(true); }
+  else if (act === 'syncHk') syncHealth(true);
+  else if (act === 'copyBase') copyText((S.settings.hkKey || '').trim().replace(/\/+$/, '') + '/pen_health/', '已複製');
+  else if (act === 'cal') addToCalendar(b.dataset.k, v);
+  else if (act === 'visit') {
+    const note = prompt('回診紀錄(選填,例如:醫師說維持 5 mg、抽血正常):', '');
+    if (note === null) return;
+    S.visits.push({ id: uid(), ts: Date.now(), note: note.trim() }); save(); render(); toast('已記錄回診 🩺 辛苦了!');
+  }
+  else if (act === 'export') download(`加油日記備份_${dayKey(Date.now())}.json`, JSON.stringify(S), 'application/json');
+  else if (act === 'copy') copyText(JSON.stringify(S), '已複製,貼到備忘錄保存');
+  else if (act === 'import') $('#fileIn').click();
+  else if (act === 'paste') { const t = prompt('把之前複製的備份文字貼在這裡:'); if (t) restore(t); }
+  else if (act === 'update') checkUpdate(true);
+  else if (act === 'wipe') { if (confirm('確定清除全部資料?無法復原(建議先備份)') && confirm('真的要清除嗎?')) { S = blank(); save(); applyTheme(); render(); } }
+});
+document.addEventListener('input', e => { if (['wKg', 'wFat', 'wMus'].includes(e.target.id)) convUpdate(); if (e.target.id === 'pDoses') $('#pTotal').value = +(ui.penForm.mg * (num(e.target.value) || 0)).toFixed(2); });
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.id === 'fileIn' && el.files[0]) { el.files[0].text().then(restore); el.value = ''; return; }
+  if (el.id === 'setH') { addHeight(num(el.value)); toast('已記錄身高'); return; }
+  const k = el.dataset.set; if (!k) return;
+  const v = k === 'drug' || k === 'shotTime' || k === 'docTime' || k === 'docName' ? el.value : k === 'goalDate' ? (el.value || null) : k === 'docOn' ? el.checked : num(el.value);
+  S.settings[k] = v;
+  if (k === 'drug') S.settings.interval = DRUGS[v].interval;
+  save(); if (k === 'drug' || k === 'docOn') render(); else toast('已儲存');
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'qkg') $('[data-act=quickWeight]').click(); });
+window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(afterRender, 150); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!ui.food) render(); syncHealth(); setTimeout(checkUpdate, 3000); } });
+
+load(); applyTheme(); render(); syncHealth();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+setTimeout(checkUpdate, 3000);
+</script>
+</body>
+</html>

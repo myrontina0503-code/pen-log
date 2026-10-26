@@ -1,0 +1,13 @@
+{
+  "name": "加油日記",
+  "short_name": "加油日記",
+  "description": "瘦瘦筆施打、體重、飲食與花費記錄",
+  "display": "standalone",
+  "start_url": "./",
+  "background_color": "#f4f3f8",
+  "theme_color": "#5b45c9",
+  "icons": [
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
