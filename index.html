@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026l';
+const BUILD = '20261026m';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -1159,15 +1159,15 @@ function drawBp() {
 // [key, 名稱, 單位, 判斷偏高的上限(女性參考), 越低越好?]
 const IB_FIELDS = [
   ['weight', '體重', 'kg'], ['smm', '骨骼肌重', 'kg'], ['fatMass', '體脂肪重', 'kg'], ['pbf', '體脂肪率', '%', 28],
-  ['bmi', 'BMI', '', 24], ['vfl', '內臟脂肪級別', '級', 9], ['waist', '腰圍', 'cm', 80], ['whr', '腰臀比', '', 0.85],
+  ['bmi', 'BMI', '', 24], ['vfl', '內臟脂肪級別', '級', 9], ['vfa', '內臟脂肪面積', 'cm²', 100], ['waist', '腰圍', 'cm', 80], ['hip', '臀圍', 'cm'], ['whr', '腰臀比', '', 0.85],
   ['bmr', '基礎代謝率', 'kcal'], ['ffm', '除脂體重', 'kg'], ['tbw', '身體總水重', 'L'], ['protein', '蛋白質重', 'kg'],
   ['mineral', '礦物質重', 'kg'], ['smi', 'SMI', 'kg/m²'], ['score', 'InBody 評分', '分'], ['target', '目標體重', 'kg'], ['kcal', '建議熱量攝取', 'kcal'],
 ];
-const IB_MAIN = ['weight', 'smm', 'fatMass', 'pbf', 'vfl', 'bmr', 'waist', 'score'];
+const IB_MAIN = ['weight', 'smm', 'fatMass', 'pbf', 'vfl', 'vfa', 'bmr', 'waist', 'score'];
 const IB_UP_GOOD = ['smm', 'bmr', 'ffm', 'protein', 'mineral', 'smi', 'score', 'tbw']; // 這些增加是好事
 const IB_PROMPT = `請讀取我附上的 InBody 報告照片,只回覆一段 JSON,不要任何其他文字:
-{"date":"YYYY-MM-DD HH:MM","height":身高cm,"weight":體重,"smm":骨骼肌重,"fatMass":體脂肪重,"pbf":體脂肪率,"bmi":BMI,"vfl":內臟脂肪級別,"bmr":基礎代謝率,"waist":腰圍,"whr":腰臀比,"ffm":除脂體重,"tbw":身體總水重,"protein":蛋白質重,"mineral":礦物質重,"smi":SMI,"score":InBody評分,"target":目標體重,"kcal":建議的熱量攝取,"note":"報告上手寫的字(沒有就空白)"}
-數字只填數字,報告上沒有的項目填 null。`;
+{"date":"YYYY-MM-DD HH:MM","height":身高cm,"weight":體重,"smm":骨骼肌重,"fatMass":體脂肪重,"pbf":體脂肪率,"bmi":BMI,"vfl":內臟脂肪級別,"vfa":內臟脂肪面積cm²,"bmr":基礎代謝率,"waist":腰圍(InBody 720 用 ABD 腹圍),"hip":臀圍,"whr":腰臀比,"ffm":除脂體重,"tbw":身體總水重,"protein":蛋白質重,"mineral":礦物質重,"smi":SMI,"score":InBody評分,"target":目標體重,"kcal":建議的熱量攝取,"note":"報告上手寫的字(沒有就空白)"}
+數字只填數字,報告上沒有的項目填 null。如果我一次附了好幾張報告,就回覆一個 JSON 陣列 [{…},{…}],每張一筆。`;
 const ibSorted = () => [...S.inbody].sort((a, b) => a.ts - b.ts);
 
 function inbodyCard() {
@@ -1183,9 +1183,9 @@ function inbodyCard() {
   ${last.target ? `<div class="sub" style="margin-top:10px">🎯 InBody 建議目標體重 <b>${last.target} kg</b>${last.weight ? `(還差 ${f1(last.weight - last.target)} kg)` : ''}${last.kcal ? ` · 建議每日熱量 ${last.kcal} kcal` : ''}</div>` : ''}
   ${last.note ? `<div class="sub" style="margin-top:6px">📝 ${esc(last.note)}</div>` : ''}
   <details class="how guide"><summary>全部數值</summary><div class="list">${IB_FIELDS.filter(([k]) => last[k] != null).map(([k, n, u]) => `<div class="item"><div class="grow">${n}</div><div class="v">${last[k]} <small class="muted">${u}</small></div></div>`).join('')}</div></details>
-  ${list.length > 1 ? `<details class="how guide"><summary>歷次紀錄(${list.length} 次)</summary><div class="list">${[...list].reverse().map(x => `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${fmtFull(x.ts)}</div><div class="t">體重 ${x.weight ?? '—'} · 骨骼肌 ${x.smm ?? '—'} · 體脂率 ${x.pbf ?? '—'}% · 內臟脂肪 ${x.vfl ?? '—'}</div></div><button class="x" data-act="delIb" data-id="${x.id}">✕</button></div>`).join('')}</div></details>`
+  ${list.length > 1 ? `<details class="how guide"><summary>歷次紀錄(${list.length} 次)</summary><div class="list">${[...list].reverse().map(x => `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${fmtFull(x.ts)}</div><div class="t">體重 ${x.weight ?? '—'} · 骨骼肌 ${x.smm ?? '—'} · 體脂率 ${x.pbf ?? '—'}% · ${x.vfl != null ? '內臟脂肪 ' + x.vfl + ' 級' : x.vfa != null ? '內臟脂肪 ' + x.vfa + ' cm²' : ''}</div></div><button class="x" data-act="delIb" data-id="${x.id}">✕</button></div>`).join('')}</div></details>`
     : `<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn ghost small" data-act="delIb" data-id="${last.id}">刪除這筆</button></div>`}
-  <div class="note">內臟脂肪級別 1–9 屬正常;腰臀比女性 > 0.85 視為腹部肥胖。減重時希望看到:體脂肪 ↓、骨骼肌維持或 ↑。</div>
+  <div class="note">內臟脂肪級別 1–9、內臟脂肪面積 100 cm² 以下屬正常;不同型號(270/720)的數值會有些差異。腰臀比女性 > 0.85 視為腹部肥胖。減重時希望看到:體脂肪 ↓、骨骼肌維持或 ↑。</div>
   <button class="btn block" style="margin-top:10px" data-act="openIb">📷 ＋ 新增 InBody</button></div>`;
   return h;
 }
@@ -1208,27 +1208,42 @@ function renderIb() {
   $('#sheet').classList.add('show'); $('#sheetBg').classList.add('show');
 }
 function readIb() { const f = ui.ib; if (!f) return; f.ts = new Date($('#ibTs').value).getTime() || f.ts; document.querySelectorAll('[data-ib]').forEach(i => f[i.dataset.ib] = i.value); }
+function ibFromObj(o) {
+  const r = { ts: o.date ? new Date(String(o.date).replace(/[./]/g, '-').replace(' ', 'T')).getTime() || null : null };
+  for (const k of ['height', ...IB_FIELDS.map(x => x[0])]) if (o[k] != null && o[k] !== '') { const n = num(String(o[k]).replace(/[^\d.\-]/g, '')); if (n != null) r[k] = n; }
+  if (o.note) r.note = String(o.note);
+  return r;
+}
 function applyIbAI(text) {
   try {
-    const m = String(text).match(/\{[\s\S]*\}/); if (!m) throw new Error('找不到 { } 格式的內容');
-    const o = JSON.parse(m[0].replace(/[“”]/g, '"').replace(/,\s*}/, '}'));
-    readIb();
-    const ts = o.date ? new Date(String(o.date).replace(/\./g, '-').replace(' ', 'T')).getTime() : null;
-    if (ts) ui.ib.ts = ts;
-    for (const k of ['height', ...IB_FIELDS.map(x => x[0])]) if (o[k] != null && o[k] !== '') { const n = num(String(o[k]).replace(/[^\d.\-]/g, '')); if (n != null) ui.ib[k] = n; }
-    if (o.note) ui.ib.note = String(o.note);
+    const m = String(text).match(/[\[{][\s\S]*[\]}]/); if (!m) throw new Error('找不到 { } 格式的內容');
+    const o = JSON.parse(m[0].replace(/[“”]/g, '"').replace(/,\s*([}\]])/g, '$1'));
+    if (Array.isArray(o)) { // 一次好幾份報告:直接全部存
+      const recs = o.map(ibFromObj).filter(r => r.weight != null && r.ts);
+      if (!recs.length) throw new Error('沒有讀到體重和日期');
+      if (!confirm(`要匯入 ${recs.length} 份 InBody 報告嗎?\n` + recs.map(r => `${fmtFull(r.ts)} 體重 ${r.weight}`).join('\n'))) return;
+      recs.forEach(addIb); save(); ui.ib = null; renderSheet(); ui.tab = 'body'; render(); toast(`已匯入 ${recs.length} 份 InBody 📊`); return;
+    }
+    readIb(); const r = ibFromObj(o);
+    for (const k in r) if (r[k] != null) ui.ib[k] = r[k];
     renderIb(); toast('已帶入 AI 讀到的數值,請核對後按儲存');
   } catch (e) { toast('讀不到:' + e.message); }
 }
-function saveIb() {
-  readIb(); const f = ui.ib, rec = { id: 'ib' + uid(), ts: f.ts };
-  for (const [k] of IB_FIELDS) { const n = num(f[k]); if (n != null) rec[k] = n; }
-  if (f.note && f.note.trim()) rec.note = f.note.trim();
-  if (rec.weight == null) return toast('至少要有體重');
+// 存一筆 InBody,並同步帶進體重紀錄與身高(同一時間的 InBody 已存在就略過)
+function addIb(r) {
+  if (S.inbody.some(x => Math.abs(x.ts - r.ts) < 60000)) return false;
+  const rec = { id: 'ib' + uid(), ts: r.ts };
+  for (const [k] of IB_FIELDS) if (r[k] != null && r[k] !== '') { const n = num(r[k]); if (n != null) rec[k] = n; }
+  if (r.note && String(r.note).trim()) rec.note = String(r.note).trim();
   S.inbody.push(rec);
-  // 同步帶進體重紀錄與身高
   S.weights.push({ id: rec.id + '_w', ts: rec.ts, kg: rec.weight, fat: rec.pbf ?? null, muscle: rec.smm ?? null, waist: rec.waist ?? null, src: 'InBody' });
-  const hcm = num(f.height); if (hcm) addHeight(hcm, rec.ts);
+  const hcm = num(r.height); if (hcm) addHeight(hcm, rec.ts);
+  return true;
+}
+function saveIb() {
+  readIb(); const f = ui.ib;
+  if (num(f.weight) == null) return toast('至少要有體重');
+  if (!addIb(f)) return toast('同一時間已經有一筆 InBody 了');
   save(); ui.ib = null; renderSheet(); ui.tab = 'body'; render(); toast('已儲存 InBody 紀錄 📊');
 }
 function ibClick(act, b) {
