@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026e';
+const BUILD = '20261026h';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -186,7 +186,7 @@ function blank() {
     settings: { height: null, startWeight: null, goalWeight: null, goalDate: null, drug: 'tirz', interval: 7, penDoses: 4,
       kcalGoal: 1500, proteinGoal: null, carbGoal: 100, fatGoal: 50, fiberGoal: 25, waterGoal: 2000, sleepGoal: 7, stepsGoal: 8000,
       hkKey: '', hkLast: null, theme: 'auto',
-      shotDow: 1, shotTime: '21:00', docOn: true, docTime: '19:00', docName: '' },
+      shotDow: 1, shotTime: '21:00', docOn: true, docTime: '19:00', docName: '', docNext: null, bpMember: null },
     visits: [],
     weights: [], heights: [], shots: [], foods: [], daily: {}, customSites: [], purchases: [], supps: [], activePen: null,
   };
@@ -197,8 +197,15 @@ function load() {
   catch (e) { S = blank(); }
   S.settings = Object.assign(blank().settings, S.settings);
   if (!S.heights.length && S.settings.height) S.heights.push({ id: uid(), ts: Date.now(), cm: S.settings.height });
+  // 已經有資料的裝置,設定優先於全新裝置的空白設定
+  if (S.metaUp == null) S.metaUp = S.weights.length || S.shots.length || S.purchases.length ? 1 : 0;
+  takeSnap();
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('儲存失敗:' + e.message); } }
+function save() {
+  stamp();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('儲存失敗:' + e.message); }
+  if (syncBase() && !syncing) { clearTimeout(syncTimer); syncTimer = setTimeout(() => syncState().catch(() => {}), 2000); }
+}
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 // ---------- 小工具 ----------
@@ -271,6 +278,8 @@ function nextShot() {
 function monthEnd(y, m) { return atTime(new Date(y, m + 1, 0).getTime(), S.settings.docTime); }
 function nextDoctor() {
   if (!S.settings.docOn) return null;
+  const fixed = S.settings.docNext ? new Date(S.settings.docNext).getTime() : null;
+  if (fixed && startOfDay(fixed) >= startOfDay(Date.now())) return { due: fixed, fixed: true, days: Math.round((startOfDay(fixed) - startOfDay(Date.now())) / DAY) };
   const now = new Date(); let y = now.getFullYear(), m = now.getMonth();
   const visited = S.visits.some(v => { const d = new Date(v.ts); return d.getFullYear() === y && d.getMonth() === m; });
   let due = monthEnd(y, m);
@@ -543,12 +552,13 @@ function viewHome() {
   const nd = nextDoctor();
   if (nd) {
     const lv2 = [...S.visits].sort((a, b) => b.ts - a.ts)[0];
-    h += `<div class="card"><h2>🩺 回診 <small>${esc(S.settings.docName || '每月月底')}</small></h2>
-      <div class="between"><div><div style="font-size:18px;font-weight:800">下次:${fmtDT(nd.due)}</div>
+    h += `<div class="card"><h2>🩺 回診 <small>${esc(S.settings.docName || '')}</small></h2>
+      <div class="between"><div><div style="font-size:18px;font-weight:800">下次:${fmtDT(nd.due)}</div>${nd.fixed ? '' : '<div class="sub" style="color:var(--warn)">還沒填預約時間,先用月底估計</div>'}
       ${lv2 ? `<div class="sub">上次 ${fmtFull(lv2.ts)}${lv2.note ? ' · ' + esc(lv2.note) : ''}</div>` : '<div class="sub">記得帶這個月的體重紀錄給醫師看</div>'}</div>
       ${nd.days > 0 ? `<span class="pill ${nd.days <= 3 ? 'warn' : ''}">還有 ${nd.days} 天</span>` : nd.days === 0 ? '<span class="pill warn">今天回診</span>' : `<span class="pill bad">已過 ${-nd.days} 天</span>`}</div>
-      <button class="btn ghost block" style="margin-top:12px" data-act="visit">✓ 已回診,記一下</button></div>`;
+      <div class="grid2" style="margin-top:12px"><button class="btn ghost" data-act="goRemind">📅 ${nd.fixed ? '改預約時間' : '填預約時間'}</button><button class="btn ghost" data-act="visit">✓ 已回診</button></div></div>`;
   }
+  h += bpHomeCard();
   // 飲食
   const k = dayKey(Date.now()), tt = nutTotals(k), td = today(), fl = foodsOn(k);
   h += `<div class="card"><h2>飲食</h2><div class="macros">
@@ -756,6 +766,7 @@ function viewBody() {
     <div class="grid2"><div><label class="f">📏 腰圍 cm(選填)</label><input class="in" id="wWaist" type="number" inputmode="decimal" step="0.1"></div>
     <div><label class="f">📐 身高 cm(選填)</label><input class="in" id="wH" type="number" inputmode="decimal" step="0.1" placeholder="${heightNow() ?? ''}"></div></div>
     <button class="btn block" style="margin-top:14px" data-act="saveBody">✓ 儲存</button></div>`;
+  h += bpBodyCards();
   const list = weightsSorted().reverse();
   h += `<div class="card"><h2>體重紀錄 <small>共 ${list.length} 筆</small></h2>${list.length ? `<div class="list">${list.slice(0, ui.wShow).map((w, i) => {
     const prev = list[i + 1], diff = prev ? w.kg - prev.kg : null;
@@ -835,22 +846,27 @@ function viewSet() {
     : `<div><label class="f">時間</label><input class="in" data-set="shotTime" type="time" value="${st.shotTime}"></div>`}
     <div class="grid2" style="margin-top:10px"><button class="btn ghost small" data-act="cal" data-k="shot" data-v="g">加到 Google 日曆</button><button class="btn ghost small" data-act="cal" data-k="shot" data-v="i">加到 iPhone 行事曆</button></div>
     <div style="border-top:1px solid var(--hair);margin:14px 0 10px"></div>
-    <div class="between"><b style="font-size:14px">🩺 每月月底回診</b><label class="row" style="font-size:13px"><input type="checkbox" data-set="docOn" ${st.docOn ? 'checked' : ''} style="width:20px;height:20px">開啟</label></div>
-    <div class="grid2"><div><label class="f">時間</label><input class="in" data-set="docTime" type="time" value="${st.docTime}"></div>
-    <div><label class="f">診所/醫師(選填)</label><input class="in" data-set="docName" value="${esc(st.docName)}" placeholder="○○診所"></div></div>
+    <div class="between"><b style="font-size:14px">🩺 回診</b><label class="row" style="font-size:13px"><input type="checkbox" data-set="docOn" ${st.docOn ? 'checked' : ''} style="width:20px;height:20px">開啟</label></div>
+    <label class="f">下次回診 日期與時間</label><input class="in" data-set="docNext" type="datetime-local" value="${st.docNext || ''}">
+    <label class="f">診所/醫師(選填)</label><input class="in" data-set="docName" value="${esc(st.docName)}" placeholder="○○診所">
+    <div class="note">${st.docNext ? '' : '還沒填預約時,先用「每月月底」估計。'}回診完按首頁「✓ 已回診」,就可以填下一次的預約。</div>
     <div class="grid2" style="margin-top:10px"><button class="btn ghost small" data-act="cal" data-k="doc" data-v="g">加到 Google 日曆</button><button class="btn ghost small" data-act="cal" data-k="doc" data-v="i">加到 iPhone 行事曆</button></div>
-    <div class="note">網頁 App 不能自己跳通知,加到行事曆後手機才會準時提醒。打針會在當下提醒;回診會在前一天和當天提醒。<b>改了時間要重新加一次</b>,並把行事曆裡舊的刪掉。</div></div>
+    <div class="note">網頁 App 不能自己跳通知,加到行事曆後手機才會準時提醒。打針會在當下提醒;回診會在前一天和 2 小時前提醒。<b>改了時間要重新加一次</b>,並把行事曆裡舊的刪掉。</div></div>
   <div class="card"><h2>每日目標</h2>
     <div class="grid3">${inp('kcalGoal', '熱量 大卡', '', '1', 'numeric')}${inp('proteinGoal', '蛋白質 g', proteinGoal(), '1', 'numeric')}${inp('carbGoal', '碳水 g', '', '1', 'numeric')}
     ${inp('fatGoal', '脂肪 g', '', '1', 'numeric')}${inp('fiberGoal', '纖維 g', '', '1', 'numeric')}${inp('waterGoal', '喝水 ml', '', '1', 'numeric')}
     ${inp('sleepGoal', '睡眠 小時', '', '0.5')}${inp('stepsGoal', '步數', '', '1', 'numeric')}</div>
     <div class="note">蛋白質留空 = 目標體重 × 1.2 g。實際需求請以醫師或營養師建議為準。</div></div>
-  <div class="card" id="hkCard"><h2>🍎 連動 iPhone 健康 <small>步數、睡眠</small></h2>
-    <div class="sub">網頁 App 不能直接讀「健康」,要用 iPhone「捷徑」每天把步數和睡眠送上來,打開 App 時會自動收進來。</div>
+  <div class="card" id="hkCard"><h2>☁️ 同步 <small>手機、電腦、iPad 一起用</small></h2>
+    <div class="sub" style="line-height:1.7">每台裝置都打開加油日記 → 設定 → 貼上<b>同一把金鑰</b> → 按「儲存金鑰」,資料就會自動合併同步。開 App、切回來、每次記錄後都會同步。</div>
     <label class="f">同步金鑰(跟血壓記錄 App 用的同一把)</label>
     <input class="in" id="hkKey" style="font-size:13px" value="${esc(st.hkKey)}" placeholder="https://…firebasedatabase.app/f_…">
+    ${BP?.members?.length ? `<label class="f">❤️ 血壓記錄裡的「我」是</label><select class="in" data-set="bpMember">${BP.members.map(m => opt(m.id, m.name, st.bpMember)).join('')}</select>` : ''}
     <div class="grid2" style="margin-top:10px"><button class="btn ghost" data-act="saveHk">儲存金鑰</button><button class="btn ghost" data-act="syncHk">立即同步</button></div>
-    ${st.hkLast ? `<div class="note">上次收到健康資料:${fmtDT(st.hkLast)}</div>` : ''}
+    <div class="note">${st.syncLast ? `上次同步:${fmtDT(st.syncLast)}` : '還沒同步過'}${st.hkLast ? ` · 上次收到健康資料:${fmtDT(st.hkLast)}` : ''}<br>有這把金鑰的人技術上都讀得到資料,請只給自己的裝置。</div>
+    <div style="border-top:1px solid var(--hair);margin:14px 0 6px"></div>
+    <b style="font-size:14px">🍎 iPhone 健康(步數、睡眠)</b>
+    <div class="sub" style="margin-top:4px">網頁 App 不能直接讀「健康」,要用 iPhone「捷徑」每天把步數和睡眠送上來。</div>
     ${base ? `<details class="how"><summary>捷徑怎麼設定?(第一次設定一次就好)</summary><ol>
       <li>打開「捷徑」→ 下方「自動化」→ 右上 ＋ →「特定時間」→ 每天 <b>22:00</b> →「立即執行」。</li>
       <li>加動作「<b>尋找健康樣本</b>」:類型「步數」、條件「開始日期 是 今天」。</li>
@@ -912,8 +928,8 @@ function applyAI(text) {
 
 // ---------- iPhone 健康(經捷徑 → Firebase) ----------
 async function syncHealth(manual) {
-  const base = (S.settings.hkKey || '').trim().replace(/\/+$/, ''); if (!base) return manual && toast('請先貼上同步金鑰');
-  try {
+  const base = syncBase(); if (!base) return 0;
+  {
     const res = await fetch(base + '/pen_health.json', { cache: 'no-store' });
     if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? '金鑰沒有權限(是不是舊金鑰?)' : 'HTTP ' + res.status);
     const data = await res.json() || {};
@@ -930,13 +946,193 @@ async function syncHealth(manual) {
       }
     }
     if (Object.keys(data).length) S.settings.hkLast = Date.now();
-    save(); if (manual) toast(Object.keys(data).length ? `已同步,更新 ${n} 筆` : '連線成功,但還沒收到捷徑送來的資料');
-    if (ui.tab === 'home' || ui.tab === 'stats' || manual) render();
+    if (n) { save(); if (!ui.food) render(); }
+    return n;
+  }
+}
+
+// ---------- 多裝置同步(手機/電腦/iPad 貼同一把金鑰,資料存在 <金鑰>/pen_state.json) ----------
+const COLLS = ['weights', 'heights', 'shots', 'foods', 'customSites', 'purchases', 'supps', 'visits'];
+const LOCAL_SETTINGS = ['hkKey', 'hkLast', 'syncLast', 'theme']; // 每台裝置自己的,不同步
+let snap = null, syncing = false, syncTimer = null;
+const strip = o => { const { up, ...r } = o || {}; return JSON.stringify(r); };
+const metaOf = st => { const s = { ...st.settings }; LOCAL_SETTINGS.forEach(k => delete s[k]); return JSON.stringify([s, st.activePen]); };
+const dayEmpty = d => !d || (!d.water && !(d.fx && d.fx.length) && d.sleep == null && d.steps == null);
+const syncBase = () => (S.settings.hkKey || '').trim().replace(/\/+$/, '');
+function takeSnap() {
+  snap = { c: {}, d: {}, m: metaOf(S) };
+  for (const c of COLLS) for (const x of S[c]) snap.c[x.id] = strip(x);
+  for (const [k, v] of Object.entries(S.daily)) snap.d[k] = strip(v);
+}
+// 跟上次儲存比:改過的蓋上更新時間 up,刪掉的記「墓碑」,其他裝置同步時才知道要刪
+function stamp() {
+  if (!snap) return takeSnap();
+  const now = Date.now(), seen = new Set(); S.tomb = S.tomb || {};
+  for (const c of COLLS) for (const x of S[c]) { seen.add(x.id); if (snap.c[x.id] !== strip(x)) x.up = now; }
+  for (const id in snap.c) if (!seen.has(id)) S.tomb[id] = now;
+  for (const [k, v] of Object.entries(S.daily)) if (snap.d[k] !== strip(v)) v.up = dayEmpty(v) ? 0 : now;
+  if (snap.m !== metaOf(S)) S.metaUp = now;
+  takeSnap();
+}
+function mergeState(R) {
+  if (!R || typeof R !== 'object') return;
+  const tomb = { ...(R.tomb || {}) };
+  for (const [k, v] of Object.entries(S.tomb || {})) tomb[k] = Math.max(tomb[k] || 0, v);
+  const old = Date.now() - 365 * DAY; for (const k in tomb) if (tomb[k] < old) delete tomb[k];
+  const ver = x => x.up || x.ts || 0;
+  for (const c of COLLS) {
+    const m = new Map();
+    for (const x of [...(R[c] || []), ...(S[c] || [])]) { if (!x || !x.id) continue; const o = m.get(x.id); if (!o || ver(x) >= ver(o)) m.set(x.id, x); }
+    S[c] = [...m.values()].filter(x => !tomb[x.id]);
+  }
+  for (const [k, v] of Object.entries(R.daily || {})) if (v && (!S.daily[k] || (v.up || 0) > (S.daily[k].up || 0))) S.daily[k] = v;
+  if ((R.metaUp || 0) > (S.metaUp || 0) && R.settings) {
+    const keep = {}; LOCAL_SETTINGS.forEach(k => keep[k] = S.settings[k]);
+    S.settings = Object.assign(blank().settings, R.settings, keep); S.activePen = R.activePen ?? null; S.metaUp = R.metaUp;
+  }
+  S.tomb = tomb;
+}
+async function syncState(manual) {
+  const base = syncBase(); if (!base || syncing) return;
+  syncing = true;
+  try {
+    const res = await fetch(base + '/pen_state.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? '金鑰沒有權限(是不是舊金鑰?)' : 'HTTP ' + res.status);
+    const before = JSON.stringify([COLLS.map(c => S[c]), S.daily, metaOf(S)]);
+    stamp(); mergeState(await res.json());
+    const changed = before !== JSON.stringify([COLLS.map(c => S[c]), S.daily, metaOf(S)]);
+    const out = JSON.parse(JSON.stringify(S)); LOCAL_SETTINGS.forEach(k => delete out.settings[k]);
+    const put = await fetch(base + '/pen_state.json', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) });
+    if (!put.ok) throw new Error('上傳失敗 HTTP ' + put.status);
+    S.settings.syncLast = Date.now(); takeSnap(); localStorage.setItem(KEY, JSON.stringify(S));
+    // 正在打字或開著飲食面板時不重畫,避免輸入到一半被清掉
+    const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if ((changed || manual) && !typing && !ui.food) { applyTheme(); render(); }
+    return changed;
+  } finally { syncing = false; }
+}
+async function syncAll(manual) {
+  if (!syncBase()) return manual && toast('請先貼上同步金鑰');
+  try {
+    const n = await syncHealth(manual);
+    await syncState(manual);
+    try {
+      await fetchBp();
+      const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+      if (!typing && !ui.food && ['home', 'body', 'set'].includes(ui.tab)) render();
+    } catch (e) { /* 血壓 App 資料讀不到不影響其他同步 */ }
+    if (manual) toast(`已同步 ✓${n ? `(健康資料更新 ${n} 筆)` : ''}`);
   } catch (e) { if (manual) alert('同步失敗:' + e.message); }
 }
 
+// ---------- 連動「血壓記錄」App:血壓、抽血、健檢(唯讀) ----------
+const BPKEY = 'pen-log-bp';
+let BP = (() => { try { return JSON.parse(localStorage.getItem(BPKEY) || 'null'); } catch (e) { return null; } })();
+const LAB_MAIN = ['A1C', 'GLU', 'TC', 'LDL', 'HDL', 'TG', 'ALT', 'CREA', 'TSH', 'WT', 'BMI', 'WAIST'];
+function bpCat(s, d) { // 衛福部/AHA 分級
+  if (s > 180 || d > 120) return ['危象', 'bad'];
+  if (s >= 140 || d >= 90) return ['高血壓第2期', 'bad'];
+  if (s >= 130 || d >= 80) return ['高血壓第1期', 'warn'];
+  if (s >= 120) return ['血壓偏高', 'warn'];
+  return ['正常', 'ok'];
+}
+async function fetchBp() {
+  const base = syncBase(); if (!base) return;
+  const st = await (await fetch(base + '/bp_state.json', { cache: 'no-store' })).json() || {};
+  const members = (st.members || []).filter(m => m && !m.deleted).map(m => ({ id: m.id, name: m.name }));
+  let mid = S.settings.bpMember;
+  if (!members.some(m => m.id === mid)) {
+    mid = (members.find(m => /tina/i.test(m.name)) || (members.length === 1 ? members[0] : null))?.id || null;
+    if (mid) { S.settings.bpMember = mid; save(); }
+  }
+  const recs = (st.records || []).filter(r => r && !r.deleted && r.memberId === mid && r.sbp && r.dbp)
+    .map(r => ({ ts: r.ts, sbp: r.sbp, dbp: r.dbp, pulse: r.pulse ?? null })).sort((a, b) => a.ts - b.ts);
+  let health = null;
+  if (mid) { const r = await fetch(base + '/bp_health/' + mid + '.json', { cache: 'no-store' }); if (r.ok) health = await r.json(); }
+  BP = { at: Date.now(), members, mid, recs, health };
+  try { localStorage.setItem(BPKEY, JSON.stringify(BP)); } catch (e) {}
+}
+const stPill = st => ({ H: '<span class="pill bad">偏高</span>', L: '<span class="pill warn">偏低</span>', A: '<span class="pill warn">異常</span>', N: '<span class="pill ok">正常</span>' }[st] || '');
+const ymd = d => String(d || '').replace(/-/g, '/');
+function nextLab() {
+  const h = BP?.health; if (!h) return null;
+  const labDates = [...new Set(h.series.filter(s => !['WT', 'BMI', 'WAIST', 'BP'].includes(s.key)).flatMap(s => s.pts.map(p => p.d)))].sort();
+  const last = labDates[labDates.length - 1]; if (!last) return null;
+  let iv = h.interval;
+  if (iv == null) { // 沒設定就看最近幾次的間隔
+    const ds = labDates.slice(-4).map(d => new Date(d + 'T00:00').getTime());
+    const gaps = ds.slice(1).map((t, i) => (t - ds[i]) / (30 * DAY));
+    const avg = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0;
+    iv = avg >= 2 && avg <= 4.5 ? 3 : avg > 4.5 && avg <= 7.5 ? 6 : 0;
+  }
+  const nd = iv ? new Date(last + 'T00:00') : null; if (nd) nd.setMonth(nd.getMonth() + iv);
+  return { last, next: nd ? nd.getTime() : null, iv };
+}
+function bpHomeCard() {
+  if (!BP || !BP.mid) return '';
+  const r = BP.recs, last = r[r.length - 1], nl = nextLab();
+  if (!last && !nl) return '';
+  const wk = r.filter(x => x.ts > Date.now() - 7 * DAY);
+  const avg = wk.length ? [Math.round(wk.reduce((a, x) => a + x.sbp, 0) / wk.length), Math.round(wk.reduce((a, x) => a + x.dbp, 0) / wk.length)] : null;
+  const c = last ? bpCat(last.sbp, last.dbp) : null;
+  return `<div class="card"><h2>❤️ 血壓與抽血 <small><a href="#" data-tab="body" style="color:var(--accent)">詳細 ›</a></small></h2>
+    ${last ? `<div class="between"><div><div class="big" style="font-size:30px">${last.sbp}/${last.dbp}<small>mmHg</small></div>
+      <div class="sub">${fmtDT(last.ts)}${last.pulse ? ' · 心跳 ' + last.pulse : ''}${avg ? ` · 7 天平均 ${avg[0]}/${avg[1]}` : ''}</div></div><span class="pill ${c[1]}">${c[0]}</span></div>` : ''}
+    ${nl ? `<div class="sub" style="margin-top:8px">🩸 上次抽血 ${ymd(nl.last)}${nl.next ? ` · 下次約 <b>${fmtFull(nl.next)}</b>${nl.next < Date.now() ? ' <span class="pill warn">該抽血了</span>' : ''}` : ''}</div>` : ''}
+    <div class="note">資料來自「血壓記錄」App,在那邊記就好,不用重複輸入。</div></div>`;
+}
+function labRow(s) {
+  const p = s.pts[s.pts.length - 1], q = s.pts[s.pts.length - 2];
+  const pn = parseFloat(String(p.raw).replace(/[^\d.\-]/g, '')), qn = q ? parseFloat(String(q.raw).replace(/[^\d.\-]/g, '')) : NaN;
+  const diff = isFinite(pn) && isFinite(qn) && s.key !== 'BP' ? pn - qn : null;
+  return `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${esc(s.name)}</div>
+    <div class="t">${ymd(p.d)}${q ? ` · 上次 ${esc(q.raw)}` : ''}${diff ? ` (${diff > 0 ? '+' : ''}${+diff.toFixed(2)})` : ''}</div></div>
+    <div style="text-align:right"><div class="v">${esc(p.raw)} <small class="muted">${esc(s.unit || '')}</small></div>${s.key === 'BP' ? (p.label ? `<span class="pill">${esc(p.label)}</span>` : '') : stPill(p.st)}</div></div>`;
+}
+function bpBodyCards() {
+  if (!syncBase()) return `<div class="card"><h2>❤️ 血壓・抽血・健檢</h2><div class="empty">到「⚙️ 設定 → ☁️ 同步」貼上同步金鑰,就會自動帶入「血壓記錄」App 的資料。</div></div>`;
+  if (!BP) return `<div class="card"><h2>❤️ 血壓・抽血・健檢</h2><div class="empty">讀取中…</div></div>`;
+  if (!BP.mid) return `<div class="card"><h2>❤️ 血壓・抽血・健檢</h2><div class="empty">請到「⚙️ 設定 → ☁️ 同步」選擇血壓記錄裡的成員。</div></div>`;
+  let h = '';
+  const r = BP.recs;
+  if (r.length) {
+    const last = r[r.length - 1], c = bpCat(last.sbp, last.dbp), m30 = r.filter(x => x.ts > Date.now() - 30 * DAY);
+    const a = m30.length ? [Math.round(m30.reduce((s, x) => s + x.sbp, 0) / m30.length), Math.round(m30.reduce((s, x) => s + x.dbp, 0) / m30.length)] : null;
+    h += `<div class="card"><h2>❤️ 血壓 <small>來自血壓記錄</small></h2>
+      <div class="between"><div><div class="big" style="font-size:30px">${last.sbp}/${last.dbp}<small>mmHg</small></div><div class="sub">${fmtDT(last.ts)}${a ? ` · 30 天平均 ${a[0]}/${a[1]}(${m30.length} 次)` : ''}</div></div><span class="pill ${c[1]}">${c[0]}</span></div>
+      <canvas class="chart" id="cBp" style="height:180px;margin-top:10px"></canvas>
+      <div class="legend"><span><i style="background:var(--bad)"></i>收縮壓</span><span><i style="background:var(--weight)"></i>舒張壓</span><span>近 90 天</span></div>
+      <div class="note">減重常常會讓血壓跟著下降,如果有在吃降血壓藥,記得讓醫師看這個趨勢。</div></div>`;
+  }
+  const hh = BP.health;
+  if (hh && hh.series?.length) {
+    const nl = nextLab(), byKey = new Map(hh.series.map(s => [s.key, s]));
+    const main = LAB_MAIN.map(k => byKey.get(k)).filter(Boolean);
+    const flagged = hh.series.filter(s => ['H', 'L', 'A'].includes(s.pts[s.pts.length - 1].st) && !LAB_MAIN.includes(s.key));
+    const cats = {}; hh.series.filter(s => !LAB_MAIN.includes(s.key)).forEach(s => (cats[s.cat] = cats[s.cat] || []).push(s));
+    h += `<div class="card"><h2>🩸 抽血重點 <small>${nl ? '上次 ' + ymd(nl.last) : ''}</small></h2>
+      ${nl?.next ? `<div class="sub" style="margin-bottom:6px">下次抽血約 <b>${fmtFull(nl.next)}</b>(每 ${nl.iv} 個月)${nl.next < Date.now() ? ' <span class="pill warn">該抽血了</span>' : ''}</div>` : ''}
+      <div class="list">${main.map(labRow).join('')}</div>
+      ${flagged.length ? `<div style="margin-top:10px;font-weight:700;font-size:13px;color:var(--warn)">其他需要留意</div><div class="list">${flagged.map(labRow).join('')}</div>` : ''}
+      ${Object.entries(cats).map(([c, arr]) => `<details class="how guide"><summary>${esc(c)}(${arr.length} 項)</summary><div class="list">${arr.map(labRow).join('')}</div></details>`).join('')}
+      <div class="note">依檢驗單位的參考值判斷,只供參考,不是診斷;有疑問請問醫師。新的抽血結果請在「血壓記錄」App 的健檢頁輸入。</div></div>`;
+    const ck = (hh.checkups || []).slice().sort((a, b) => a.d < b.d ? 1 : -1);
+    if (ck.length) h += `<div class="card"><h2>📋 成人健檢紀錄</h2><div class="list">${ck.map(c => `<div class="item"><div class="grow">${ymd(c.d)}</div><div class="sub">${esc(c.org)}</div></div>`).join('')}</div></div>`;
+  } else {
+    h += `<div class="card"><h2>🩸 抽血・健檢</h2><div class="empty">還沒收到。到「血壓記錄」App 的 🩺 健檢頁,勾選「分享給加油日記」,同步後就會出現在這裡。</div></div>`;
+  }
+  return h;
+}
+function drawBp() {
+  const cv = $('#cBp'); if (!cv || !BP) return;
+  const r = BP.recs.filter(x => x.ts > Date.now() - 90 * DAY); if (!r.length) { cv.outerHTML = '<div class="empty">近 90 天沒有血壓紀錄</div>'; return; }
+  drawChart(cv, { x0: r[0].ts, x1: Math.max(r[r.length - 1].ts, Date.now()), series: [
+    { pts: r.map(x => ({ x: x.ts, y: x.sbp })), color: css('--bad'), dots: 2.5, width: 1.5 },
+    { pts: r.map(x => ({ x: x.ts, y: x.dbp })), color: css('--weight'), dots: 2.5, width: 1.5 }] });
+}
+
 function afterRender() {
-  if (ui.tab === 'body') convUpdate();
+  if (ui.tab === 'body') { convUpdate(); drawBp(); }
   if (ui.tab !== 'stats') return;
   const from = ui.range ? Date.now() - ui.range * DAY : -Infinity;
   const wsAll = weightsSorted().filter(w => w.ts >= from), ws = wsAll.map(w => ({ x: w.ts, y: w.kg }));
@@ -1000,15 +1196,15 @@ function addToCalendar(kind, where) {
   } else {
     const nd = nextDoctor() || { due: monthEnd(new Date().getFullYear(), new Date().getMonth()) };
     start = new Date(nd.due); title = '🩺 回診檢查' + (st.docName ? ' · ' + st.docName : '');
-    rrule = 'RRULE:FREQ=MONTHLY;BYMONTHDAY=-1'; alarms = ['-P1D', '-PT2H'];
+    rrule = nd.fixed ? '' : 'RRULE:FREQ=MONTHLY;BYMONTHDAY=-1'; alarms = ['-P1D', '-PT2H'];
   }
   const end = new Date(start.getTime() + (kind === 'shot' ? 15 : 60) * 60000);
   if (where === 'g') {
     window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(title) +
-      `&dates=${localStamp(start)}/${localStamp(end)}&ctz=${encodeURIComponent(tz)}&recur=${encodeURIComponent(rrule)}`, '_blank');
+      `&dates=${localStamp(start)}/${localStamp(end)}&ctz=${encodeURIComponent(tz)}` + (rrule ? `&recur=${encodeURIComponent(rrule)}` : ''), '_blank');
   } else {
     download(kind === 'shot' ? '打針提醒.ics' : '回診提醒.ics', ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//pen-log//TW', 'BEGIN:VEVENT', `UID:${uid()}@pen-log`,
-      `DTSTAMP:${utc(new Date())}`, `DTSTART;TZID=${tz}:${localStamp(start)}`, `DTEND;TZID=${tz}:${localStamp(end)}`, `SUMMARY:${title}`, rrule,
+      `DTSTAMP:${utc(new Date())}`, `DTSTART;TZID=${tz}:${localStamp(start)}`, `DTEND;TZID=${tz}:${localStamp(end)}`, `SUMMARY:${title}`, ...(rrule ? [rrule] : []),
       ...alarms.flatMap(t => ['BEGIN:VALARM', `TRIGGER:${t}`, 'ACTION:DISPLAY', `DESCRIPTION:${title}`, 'END:VALARM']), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n'), 'text/calendar');
   }
 }
@@ -1105,14 +1301,19 @@ document.addEventListener('click', e => {
   }
   else if (act === 'delFood') { if (confirm('刪除這筆飲食?')) { S.foods = S.foods.filter(f => f.id !== b.dataset.id); save(); render(); } }
   else if (act === 'goHk') { ui.tab = 'set'; render(); $('#hkCard').scrollIntoView(); }
-  else if (act === 'saveHk') { S.settings.hkKey = $('#hkKey').value.trim(); save(); render(); syncHealth(true); }
-  else if (act === 'syncHk') syncHealth(true);
+  else if (act === 'saveHk') { S.settings.hkKey = $('#hkKey').value.trim(); save(); render(); syncAll(true); }
+  else if (act === 'syncHk') syncAll(true);
   else if (act === 'copyBase') copyText((S.settings.hkKey || '').trim().replace(/\/+$/, '') + '/pen_health/', '已複製');
   else if (act === 'cal') addToCalendar(b.dataset.k, v);
+  else if (act === 'goRemind') { ui.tab = 'set'; render(); $('#remind').scrollIntoView(); $('[data-set=docNext]').focus(); }
   else if (act === 'visit') {
     const note = prompt('回診紀錄(選填,例如:醫師說維持 5 mg、抽血正常):', '');
     if (note === null) return;
-    S.visits.push({ id: uid(), ts: Date.now(), note: note.trim() }); save(); render(); toast('已記錄回診 🩺 辛苦了!');
+    S.visits.push({ id: uid(), ts: Date.now(), note: note.trim() });
+    if (S.settings.docNext && new Date(S.settings.docNext).getTime() < Date.now() + DAY) S.settings.docNext = null;
+    save(); toast('已記錄回診 🩺 辛苦了!');
+    ui.tab = 'set'; render(); $('#remind').scrollIntoView(); setTimeout(() => $('[data-set=docNext]')?.focus(), 300);
+    toast('已記錄回診 🩺 辛苦了!填一下下次預約時間吧');
   }
   else if (act === 'export') download(`加油日記備份_${dayKey(Date.now())}.json`, JSON.stringify(S), 'application/json');
   else if (act === 'copy') copyText(JSON.stringify(S), '已複製,貼到備忘錄保存');
@@ -1127,16 +1328,18 @@ document.addEventListener('change', e => {
   if (el.id === 'fileIn' && el.files[0]) { el.files[0].text().then(restore); el.value = ''; return; }
   if (el.id === 'setH') { addHeight(num(el.value)); toast('已記錄身高'); return; }
   const k = el.dataset.set; if (!k) return;
-  const v = k === 'drug' || k === 'shotTime' || k === 'docTime' || k === 'docName' ? el.value : k === 'goalDate' ? (el.value || null) : k === 'docOn' ? el.checked : num(el.value);
+  const v = k === 'bpMember' ? el.value : k === 'docNext' ? (el.value || null) : k === 'drug' || k === 'shotTime' || k === 'docTime' || k === 'docName' ? el.value : k === 'goalDate' ? (el.value || null) : k === 'docOn' ? el.checked : num(el.value);
   S.settings[k] = v;
   if (k === 'drug') S.settings.interval = DRUGS[v].interval;
-  save(); if (k === 'drug' || k === 'docOn') render(); else toast('已儲存');
+  if (k === 'docNext' && v) S.settings.docTime = v.slice(11, 16);
+  if (k === 'bpMember') fetchBp().then(render).catch(() => {});
+  save(); if (k === 'drug' || k === 'docOn' || k === 'docNext') { render(); toast('已儲存'); } else toast('已儲存');
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'qkg') $('[data-act=quickWeight]').click(); });
 window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(afterRender, 150); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!ui.food) render(); syncHealth(); setTimeout(checkUpdate, 3000); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!ui.food) render(); syncAll(); setTimeout(checkUpdate, 3000); } });
 
-load(); applyTheme(); render(); syncHealth();
+load(); applyTheme(); render(); syncAll();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 setTimeout(checkUpdate, 3000);
 </script>
