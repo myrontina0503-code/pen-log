@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026j';
+const BUILD = '20261026k';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -589,6 +589,16 @@ function viewHome() {
 
 // ---------- 藥物記錄:施打 / 筆與花費 / 營養品 ----------
 const money = n => 'NT$ ' + Math.round(n || 0).toLocaleString();
+const drugLabel = x => !x ? '' : x.drug === 'other' ? (x.brand || '其他') : (DRUGS[x.drug]?.name || x.brand || '');
+// 開始用某支筆:用藥自動切成那支筆的品牌
+function usePen(p) {
+  S.activePen = { id: p.id, since: Date.now() };
+  if (p.drug && p.drug !== S.settings.drug) {
+    S.settings.drug = p.drug;
+    if ((DRUGS[p.drug]?.interval || 7) !== (S.settings.interval || 7)) S.settings.interval = DRUGS[p.drug]?.interval || 7;
+    toast('已切換用藥為 ' + drugLabel(p));
+  }
+}
 function penTotal(id) { return S.shots.filter(s => s.penId === id).reduce((a, s) => a + (s.dose || 0), 0); }
 function penStatus() {
   const p = S.purchases.find(x => x.id === S.activePen?.id); if (!p) return null;
@@ -636,7 +646,7 @@ function viewShot() {
   const list = [...all].reverse();
   h += `<div class="card"><h2>施打紀錄 <small>共 ${list.length} 次</small></h2>${list.length ? `<div class="list">${list.map(s => `
     <div class="item"><div class="grow"><div class="v">${s.dose ?? '?'} mg · ${esc(siteName(s.site)) || '—'}</div>
-    <div class="t">${fmtDT(s.ts)} · ${esc(DRUGS[s.drug]?.name || '')}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
+    <div class="t">${fmtDT(s.ts)} · ${esc(drugLabel(s))}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
     <button class="x" data-act="delShot" data-id="${s.id}">✕</button></div>`).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
   h += guideCard('📖 打針注意事項', ['💉 打針前', '📍 打針時', '🧊 打針後與保存']);
   return h;
@@ -649,7 +659,7 @@ function viewPen() {
   const weeks = first ? (Date.now() - first) / (7 * DAY) : 0;
   let h = `<div class="card"><h2>🖊️ 手上這支筆</h2>${ps ? `
     <div class="between"><div><div class="big">${ps.left}<small>mg 剩下</small></div>
-    <div class="sub">${fmtFull(ps.p.ts)} 買的 ${ps.p.totalMg} mg 筆 · 已打 ${ps.n} 次共 ${+ps.used.toFixed(2)} mg</div></div></div>
+    <div class="sub"><b>${esc(drugLabel(ps.p))}</b> · ${fmtFull(ps.p.ts)} 買的 ${ps.p.totalMg} mg 筆 · 已打 ${ps.n} 次共 ${+ps.used.toFixed(2)} mg</div></div></div>
     ${bar(ps.left, ps.p.totalMg, ps.left <= (ps.usual || 0) ? 'var(--warn)' : 'var(--shot)')}
     <div class="between sub"><span>以 ${ps.usual} mg 計算,還能打 <b>${ps.doses ?? '—'}</b> 次</span>${ps.doses != null ? `<span>${ps.doses <= 1 ? '<span class="pill warn">該準備下一支了</span>' : `約到 ${fmtDate(Date.now() + ps.doses * (S.settings.interval || 7) * DAY)}`}</span>` : ''}</div>
     <div class="row" style="margin-top:12px"><button class="btn ghost small" data-act="adjPen">修正剩餘量</button><button class="btn ghost small" data-act="endPen">這支用完了</button></div>`
@@ -660,12 +670,18 @@ function viewPen() {
     <div class="stat"><div class="k">平均每 mg</div><div class="n" style="font-size:18px">${sp.mg ? money(sp.pens / sp.mg) : '—'}</div></div>
     <div class="stat"><div class="k">已打掉的價值</div><div class="n" style="font-size:18px">${money(usedValue())}</div></div></div>
     ${weeks >= 4 ? `<div class="note">開始買筆至今平均每週 ${money(sp.pens / weeks)}。</div>` : ''}
+    ${(() => { const by = {}; S.purchases.forEach(p => { const k = drugLabel(p) || '未註明品牌'; by[k] = by[k] || { n: 0, v: 0, mg: 0 }; by[k].n++; by[k].v += p.price || 0; by[k].mg += p.totalMg || 0; });
+      const e = Object.entries(by); return e.length > 1 || (e.length && e[0][0] !== '未註明品牌') ? `<div class="list" style="margin-top:8px">${e.sort((a, b) => b[1].v - a[1].v).map(([k, x]) => `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${esc(k)}</div><div class="t">${x.n} 支 · ${+x.mg.toFixed(2)} mg · 每 mg ${money(x.v / (x.mg || 1))}</div></div><div class="v">${money(x.v)}</div></div>`).join('')}</div>` : ''; })()}
     <div class="between" style="margin-top:12px"><b>從頭到尾總共</b><b style="font-size:22px;color:var(--accent)">${money(sp.all)}</b></div>
     ${lost > 0.5 && sp.pens ? `<div class="note">目前減了 ${f1(lost)} kg,平均每減 1 公斤花 ${money(sp.pens / lost)}(只算筆)。</div>` : ''}</div>`;
   const pp = ui.penForm;
+  if (!pp.drug) { const lp = [...S.purchases].sort((a, b) => b.ts - a.ts)[0]; pp.drug = lp?.drug || S.settings.drug; pp.brand = lp?.brand || ''; }
   h += `<div class="card"><h2>＋ 記錄買筆</h2>
     <div class="grid2"><div><label class="f">購買日期</label><input class="in" id="pDate" type="date" value="${dayKey(Date.now())}"></div>
     <div><label class="f">金額 NT$</label><input class="in" id="pPrice" type="number" inputmode="numeric" placeholder="例如 6000"></div></div>
+    <label class="f">藥品 / 品牌</label>
+    <select class="in" id="pDrug" onchange="document.getElementById('pBrandBox').style.display = this.value === 'other' ? 'block' : 'none'">${Object.entries(DRUGS).map(([k, d]) => `<option value="${k}" ${k === pp.drug ? 'selected' : ''}>${d.name}${d.gen ? `(${d.gen})` : ''}</option>`).join('')}</select>
+    <div id="pBrandBox" style="display:${pp.drug === 'other' ? 'block' : 'none'}"><label class="f">品牌名稱</label><input class="in" id="pBrand" list="brandNames" value="${esc(pp.brand || '')}" placeholder="例如:Zepbound"><datalist id="brandNames">${[...new Set(S.purchases.map(x => x.brand).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
     <div class="grid2"><div><label class="f">① 這支筆總共幾 mg</label><input class="in" id="pTotal" type="number" inputmode="decimal" step="0.01" value="${pp.total}"></div>
     <div><label class="f">買幾支</label><input class="in" id="pQty" type="number" inputmode="numeric" value="1"></div></div>
     <label class="f">② 每次打幾 mg</label>
@@ -679,7 +695,7 @@ function viewPen() {
   h += `<div class="card"><h2>買筆紀錄 <small>共 ${list.length} 支</small></h2>${list.length ? `<div class="list">${list.map(p => {
     const active = S.activePen?.id === p.id, used = penTotal(p.id);
     const tag = active ? '<span class="pill ok">使用中</span>' : p.done || used >= p.totalMg - 0.01 ? '<span class="pill">已用完</span>' : used > 0 ? '<span class="pill warn">用過</span>' : '<span class="pill">未開封</span>';
-    return `<div class="item"><div class="grow"><div class="v">${p.totalMg} mg 筆 · ${money(p.price)} ${tag}</div>
+    return `<div class="item"><div class="grow"><div class="v">${drugLabel(p) ? esc(drugLabel(p)) + ' · ' : ''}${p.totalMg} mg 筆 · ${money(p.price)} ${tag}</div>
       <div class="t">${fmtFull(p.ts)}${p.place ? ' · ' + esc(p.place) : ''} · 已用 ${+used.toFixed(2)} / ${p.totalMg} mg</div></div>
       ${!active ? `<button class="btn ghost small" data-act="usePen" data-id="${p.id}">開始用</button>` : ''}<button class="x" data-act="delPen" data-id="${p.id}">✕</button></div>`;
   }).join('')}</div>` : '<div class="empty">還沒有紀錄</div>'}</div>`;
@@ -726,18 +742,21 @@ function medClick(act, b, v) {
   if (act === 'savePen') {
     const total = num($('#pTotal').value); if (!total) return toast('請填這支筆總共幾 mg'), true;
     const doses = Math.floor(total / ui.penForm.mg + 1e-9); ui.penForm.total = total;
+    const drug = $('#pDrug').value, brand = drug === 'other' ? $('#pBrand').value.trim() : '';
+    if (drug === 'other' && !brand) return toast('請填品牌名稱'), true;
+    ui.penForm.drug = drug; ui.penForm.brand = brand;
     const qty = Math.max(1, Math.round(num($('#pQty').value) || 1)), price = num($('#pPrice').value);
     const ts = new Date($('#pDate').value + 'T12:00').getTime() || Date.now();
     if (price == null) return toast('請填金額'), true;
     let firstId;
     for (let i = 0; i < qty; i++) {
       const id = uid() + i; firstId = firstId || id;
-      S.purchases.push({ id, ts, mgPerDose: ui.penForm.mg, doses, totalMg: total, price: price / qty, place: $('#pPlace').value.trim() });
+      S.purchases.push({ id, ts, drug, brand, mgPerDose: ui.penForm.mg, doses, totalMg: total, price: price / qty, place: $('#pPlace').value.trim() });
     }
-    if ($('#pUse').checked) S.activePen = { id: firstId, since: Date.now() };
+    if ($('#pUse').checked) usePen(S.purchases.find(x => x.id === firstId));
     save(); render(); toast(qty > 1 ? `已記錄 ${qty} 支` : '已記錄'); return true;
   }
-  if (act === 'usePen') { S.activePen = { id: b.dataset.id, since: Date.now() }; save(); render(); toast('已設為使用中'); return true; }
+  if (act === 'usePen') { const p = S.purchases.find(x => x.id === b.dataset.id); const sw = p.drug && p.drug !== S.settings.drug; usePen(p); save(); render(); if (!sw) toast('已設為使用中'); return true; }
   if (act === 'endPen') { const p = S.purchases.find(x => x.id === S.activePen?.id); if (p) p.done = true; S.activePen = null; save(); render(); return true; }
   if (act === 'adjPen') {
     const ps = penStatus(); const n = num(prompt('實際還剩幾 mg?', ps.left)); if (n == null) return true;
@@ -823,8 +842,8 @@ function viewStats() {
   for (const [k, v] of Object.entries(S.daily)) { if (new Date(k + 'T00:00').getTime() < from - DAY || !v.fx?.length) continue; fd++; v.fx.forEach(f => cnt[f] = (cnt[f] || 0) + 1); }
   const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
   if (top.length) h += `<div class="card"><h2>身體狀況 <small>有記錄的 ${fd} 天中</small></h2><div class="list">${top.map(([f, n]) => `<div class="item"><div class="grow">${esc(f)}</div><div class="v">${n} 天</div></div>`).join('')}</div></div>`;
-  const steps = []; for (const s of ss) { const l = steps[steps.length - 1]; if (!l || l.dose !== s.dose || l.drug !== s.drug) steps.push({ dose: s.dose, drug: s.drug, ts: s.ts, n: 1 }); else l.n++; }
-  if (steps.length) h += `<div class="card"><h2>劑量歷程</h2><div class="list">${steps.reverse().map(s => `<div class="item"><div class="grow"><div class="v">${s.dose ?? '?'} mg</div><div class="t">${fmtDate(s.ts)} 起 · ${esc(DRUGS[s.drug]?.name || '')}</div></div><div class="sub">${s.n} 次</div></div>`).join('')}</div></div>`;
+  const steps = []; for (const s of ss) { const l = steps[steps.length - 1]; if (!l || l.dose !== s.dose || drugLabel(l) !== drugLabel(s)) steps.push({ dose: s.dose, drug: s.drug, brand: s.brand, ts: s.ts, n: 1 }); else l.n++; }
+  if (steps.length) h += `<div class="card"><h2>劑量歷程</h2><div class="list">${steps.reverse().map(s => `<div class="item"><div class="grow"><div class="v">${s.dose ?? '?'} mg</div><div class="t">${fmtDate(s.ts)} 起 · ${esc(drugLabel(s))}</div></div><div class="sub">${s.n} 次</div></div>`).join('')}</div></div>`;
   if (!ws.length && !ss.length && !aK && !aS && !aT) h += '<div class="card"><div class="empty">有了紀錄之後,這裡會出現趨勢圖。</div></div>';
   return h;
 }
@@ -1263,7 +1282,7 @@ document.addEventListener('click', e => {
     const dose = ui.customDose ? num($('#sDose').value) : ui.dose;
     if (dose == null || dose <= 0) return toast(ui.customDose ? '請輸入自訂劑量' : '請選擇劑量');
     const ts = new Date($('#sTs').value).getTime() || Date.now();
-    S.shots.push({ id: uid(), ts, drug: S.settings.drug, dose, site: ui.site, siteName: siteName(ui.site), penId: S.activePen?.id || null, note: $('#sNote').value.trim() });
+    S.shots.push({ id: uid(), ts, drug: S.settings.drug, brand: S.settings.drug === 'other' ? (penStatus()?.p.brand || '') : '', dose, site: ui.site, siteName: siteName(ui.site), penId: S.activePen?.id || null, note: $('#sNote').value.trim() });
     const ps = penStatus(); save(); toast(ps && ps.left < dose ? '已記錄!這支筆快用完了,記得準備下一支' : '已記錄施打 💉 又完成一週,很棒!');
     ui.tab = 'home'; ui.dose = null; ui.customDose = false; ui.site = null; render(); scrollTo(0, 0);
   }
