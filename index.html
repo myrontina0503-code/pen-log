@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026h';
+const BUILD = '20261026i';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -166,7 +166,7 @@ const DRUGS = {
   saxen:  { name: '善纖達 Saxenda', gen: 'liraglutide', half: 13, tmax: 11, interval: 1 },
   other:  { name: '其他', gen: '', half: 0, tmax: 0, interval: 7 },
 };
-const DOSES = [2.5, 5, 7.5, 10, 12.5, 15];
+const DOSES = [0.25, 0.5, 0.75, 1];
 const SITES = [
   ['abdL', '腹部', '左側'], ['abdR', '腹部', '右側'],
   ['thL', '大腿', '左'], ['thR', '大腿', '右'],
@@ -410,7 +410,7 @@ function drawBars(cv, { bars, goal, color, yFmt = v => v.toFixed(0) }) {
 
 // ---------- 畫面 ----------
 const TABS = [['home', '🏠', '今天'], ['med', '💊', '藥物'], ['body', '⚖️', '身體'], ['stats', '📈', '趨勢'], ['set', '⚙️', '設定']];
-const ui = { tab: 'home', dose: null, customDose: false, site: null, range: 90, wShow: 20, fatU: '%', musU: 'kg', sheet: null, food: null, medSeg: 'shot', cheer: 0, penForm: { mg: 2.5, doses: 4 } };
+const ui = { tab: 'home', dose: null, customDose: false, site: null, range: 90, wShow: 20, fatU: '%', musU: 'kg', sheet: null, food: null, medSeg: 'shot', cheer: 0, penForm: { mg: 0.25, doses: 4 } };
 
 function render() {
   $('#today').textContent = fmtDate(Date.now());
