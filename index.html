@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261027a';
+const BUILD = '20261027b';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -198,6 +198,7 @@ function load() {
   S.settings = Object.assign(blank().settings, S.settings);
   if (!S.heights.length && S.settings.height) S.heights.push({ id: uid(), ts: Date.now(), cm: S.settings.height });
   // 已經有資料的裝置,設定優先於全新裝置的空白設定
+  normState();
   if (S.metaUp == null) S.metaUp = S.weights.length || S.shots.length || S.purchases.length ? 1 : 0;
   takeSnap();
 }
@@ -241,7 +242,15 @@ function bmiTag(b) { // 衛福部國健署成人 BMI 標準
   if (b < 27) return '<span class="pill warn">過重</span>';
   return '<span class="pill bad">肥胖</span>';
 }
-function dayData(k) { return S.daily[k] || (S.daily[k] = { water: 0, fx: [] }); }
+// 雲端資料庫(Firebase)不會存空陣列/空物件,同步回來的資料要補回預設值
+function normDay(d) { if (!Array.isArray(d.fx)) d.fx = d.fx ? Object.values(d.fx) : []; if (d.water == null) d.water = 0; return d; }
+function normState() {
+  for (const k of ['weights', 'heights', 'shots', 'foods', 'inbody', 'customSites', 'purchases', 'supps', 'visits']) S[k] = Array.isArray(S[k]) ? S[k].filter(Boolean) : S[k] ? Object.values(S[k]).filter(Boolean) : [];
+  if (!S.daily || typeof S.daily !== 'object') S.daily = {};
+  for (const k in S.daily) if (S.daily[k]) normDay(S.daily[k]); else delete S.daily[k];
+  if (!S.tomb || typeof S.tomb !== 'object') S.tomb = {};
+}
+function dayData(k) { return normDay(S.daily[k] || (S.daily[k] = { water: 0, fx: [] })); }
 const today = () => dayData(dayKey(Date.now()));
 function proteinGoal() { const g = S.settings.proteinGoal; if (g) return g; const w = S.settings.goalWeight || latestWeight()?.kg; return w ? Math.round(w * 1.2) : 80; }
 function goalOf(k) { return k === 'protein' ? proteinGoal() : S.settings[k + 'Goal'] || 0; }
@@ -1015,6 +1024,7 @@ function mergeState(R) {
     S.settings = Object.assign(blank().settings, R.settings, keep); S.activePen = R.activePen ?? null; S.metaUp = R.metaUp;
   }
   S.tomb = tomb;
+  normState();
 }
 async function syncState(manual) {
   const base = syncBase(); if (!base || syncing) return;
