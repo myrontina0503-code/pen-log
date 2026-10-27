@@ -155,7 +155,7 @@ details.guide li { margin-bottom: 4px; }
 <div class="sheet" id="sheet"></div>
 
 <script>
-const BUILD = '20261026n';
+const BUILD = '20261027a';
 const KEY = 'pen-log-v1';
 
 // 台灣常見 GLP-1 瘦瘦筆。half=半衰期(小時), tmax=到達高峰(小時), 只用來畫「粗估」曲線
@@ -970,7 +970,7 @@ async function syncHealth(manual) {
       }
     }
     if (Object.keys(data).length) S.settings.hkLast = Date.now();
-    if (n) { save(); if (!ui.food && !ui.ib) render(); }
+    if (n) { save(); if (!ui.food && !ui.ib && !ui.info) render(); }
     return n;
   }
 }
@@ -1031,7 +1031,7 @@ async function syncState(manual) {
     S.settings.syncLast = Date.now(); takeSnap(); localStorage.setItem(KEY, JSON.stringify(S));
     // 正在打字或開著飲食面板時不重畫,避免輸入到一半被清掉
     const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if ((changed || manual) && !typing && !ui.food && !ui.ib) { applyTheme(); render(); }
+    if ((changed || manual) && !typing && !ui.food && !ui.ib && !ui.info) { applyTheme(); render(); }
     return changed;
   } finally { syncing = false; }
 }
@@ -1043,7 +1043,7 @@ async function syncAll(manual) {
     try {
       await fetchBp();
       const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-      if (!typing && !ui.food && !ui.ib && ['home', 'body', 'set'].includes(ui.tab)) render();
+      if (!typing && !ui.food && !ui.ib && !ui.info && ['home', 'body', 'set'].includes(ui.tab)) render();
     } catch (e) { /* 血壓 App 資料讀不到不影響其他同步 */ }
     if (manual) toast(`已同步 ✓${n ? `(健康資料更新 ${n} 筆)` : ''}`);
   } catch (e) { if (manual) alert('同步失敗:' + e.message); }
@@ -1116,7 +1116,7 @@ function labRow(s) {
   const p = s.pts[s.pts.length - 1], q = s.pts[s.pts.length - 2];
   const pn = parseFloat(String(p.raw).replace(/[^\d.\-]/g, '')), qn = q ? parseFloat(String(q.raw).replace(/[^\d.\-]/g, '')) : NaN;
   const diff = isFinite(pn) && isFinite(qn) && s.key !== 'BP' ? pn - qn : null;
-  return `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${esc(s.name)}</div>
+  return `<div class="item" data-act="labInfo" data-key="${esc(s.key)}" style="cursor:pointer"><div class="grow"><div class="v" style="font-weight:600">${esc(s.name)} <span class="muted" style="font-weight:400">ⓘ</span></div>
     <div class="t">${ymd(p.d)}${q ? ` · 上次 ${esc(q.raw)}` : ''}${diff ? ` (${diff > 0 ? '+' : ''}${+diff.toFixed(2)})` : ''}</div></div>
     <div style="text-align:right"><div class="v">${esc(p.raw)} <small class="muted">${esc(s.unit || '')}</small></div>${s.key === 'BP' ? (p.label ? `<span class="pill">${esc(p.label)}</span>` : '') : stPill(p.st)}</div></div>`;
 }
@@ -1141,7 +1141,7 @@ function bpBodyCards() {
     const main = LAB_MAIN.map(k => byKey.get(k)).filter(Boolean);
     const flagged = hh.series.filter(s => ['H', 'L', 'A'].includes(s.pts[s.pts.length - 1].st) && !LAB_MAIN.includes(s.key));
     const cats = {}; hh.series.filter(s => !LAB_MAIN.includes(s.key)).forEach(s => (cats[s.cat] = cats[s.cat] || []).push(s));
-    h += `<div class="card"><h2>🩸 抽血重點 <small>${nl ? '上次 ' + ymd(nl.last) : ''}</small></h2>
+    h += `<div class="card"><h2>🩸 抽血重點 <small>點項目看說明 · ${nl ? '上次 ' + ymd(nl.last) : ''}</small></h2>
       ${nl?.next ? `<div class="sub" style="margin-bottom:6px">下次抽血約 <b>${fmtFull(nl.next)}</b>(每 ${nl.iv} 個月)${nl.next < Date.now() ? ' <span class="pill warn">該抽血了</span>' : ''}</div>` : ''}
       <div class="list">${main.map(labRow).join('')}</div>
       ${flagged.length ? `<div style="margin-top:10px;font-weight:700;font-size:13px;color:var(--warn)">其他需要留意</div><div class="list">${flagged.map(labRow).join('')}</div>` : ''}
@@ -1160,6 +1160,163 @@ function drawBp() {
   drawChart(cv, { x0: r[0].ts, x1: Math.max(r[r.length - 1].ts, Date.now()), series: [
     { pts: r.map(x => ({ x: x.ts, y: x.sbp })), color: css('--bad'), dots: 2.5, width: 1.5 },
     { pts: r.map(x => ({ x: x.ts, y: x.dbp })), color: css('--weight'), dots: 2.5, width: 1.5 }] });
+}
+
+/* ---------- 檢驗項目說明(成人一般參考值;實際以檢驗單位與醫師判讀為準) ---------- */
+// what=是什麼, r=參考範圍 [[範圍, 意義, 等級 ok/warn/bad]], tip=要注意/怎麼改善, pen=跟瘦瘦筆(GLP-1)的關係
+const LAB_INFO = {
+  TG: { what: '血液中的「中性脂肪」,主要來自吃進去的油脂、甜食、精緻澱粉和酒,多餘的熱量也會被肝臟轉成三酸甘油脂。',
+    r: [['< 150 mg/dL', '正常', 'ok'], ['150–199', '邊緣偏高', 'warn'], ['200–499', '偏高', 'bad'], ['≥ 500', '非常高,有急性胰臟炎風險', 'bad']],
+    tip: '偏高會增加心血管疾病和脂肪肝風險。少喝含糖飲料和酒、少吃甜食與精緻澱粉、多運動、減重,通常幾個月內就會明顯下降。抽血前要空腹 10–12 小時,不然數值會偏高。',
+    pen: '瘦瘦筆常讓三酸甘油脂下降。但三酸甘油脂很高(≥ 500)本身就是胰臟炎的風險,打針期間若劇烈上腹痛要立刻就醫。' },
+  TC: { what: '血液中所有膽固醇的總量,包含「壞的」LDL 和「好的」HDL。',
+    r: [['< 200 mg/dL', '理想', 'ok'], ['200–239', '邊緣偏高', 'warn'], ['≥ 240', '偏高', 'bad']],
+    tip: '總膽固醇只是總數,要搭配 LDL 和 HDL 一起看才準。' },
+  LDL: { what: '俗稱「壞膽固醇」,太多會堆積在血管壁形成斑塊,讓血管變窄變硬。',
+    r: [['< 100 mg/dL', '理想', 'ok'], ['100–129', '接近理想', 'ok'], ['130–159', '邊緣偏高', 'warn'], ['160–189', '偏高', 'bad'], ['≥ 190', '非常高', 'bad']],
+    tip: '有糖尿病、高血壓或心血管疾病的人,醫師通常會要求更低(例如 < 70 或 < 100)。少吃油炸、肥肉、加工肉品、奶油糕點,多吃蔬菜、燕麥、豆類、堅果。' },
+  HDL: { what: '俗稱「好膽固醇」,會把血管裡多餘的膽固醇帶回肝臟處理,越高越能保護血管。',
+    r: [['女性 ≥ 50 mg/dL', '正常', 'ok'], ['女性 < 50', '偏低', 'warn'], ['≥ 60', '有保護作用', 'ok']],
+    tip: '規律有氧運動、減重、戒菸、吃好的油(橄欖油、魚、堅果)可以提高 HDL。' },
+  GLU: { what: '空腹 8 小時以上的血糖,反映身體平常控制血糖的能力。',
+    r: [['70–99 mg/dL', '正常', 'ok'], ['100–125', '糖尿病前期(空腹血糖偏高)', 'warn'], ['≥ 126', '可能是糖尿病(需再驗一次確認)', 'bad'], ['< 70', '偏低', 'warn']],
+    tip: '減重、少吃精緻澱粉與甜食、飯後走一走都能改善。吃飯順序「菜 → 肉 → 飯」可以讓血糖上升比較慢。',
+    pen: '瘦瘦筆會幫助降血糖。如果同時有吃降血糖藥(特別是磺醯尿素類或打胰島素),要注意低血糖:發抖、冒冷汗、心悸、頭暈。' },
+  RGLU: { what: '沒有空腹、隨時抽的血糖。',
+    r: [['< 140 mg/dL', '一般', 'ok'], ['140–199', '偏高,建議驗空腹血糖或糖化血色素', 'warn'], ['≥ 200 且有多喝多尿等症狀', '可能是糖尿病', 'bad']], tip: '隨機血糖受剛吃的東西影響很大,判斷時以空腹血糖和 HbA1c 為主。' },
+  PPG: { what: '吃飯後 2 小時的血糖,看身體處理一餐醣類的能力。',
+    r: [['< 140 mg/dL', '正常', 'ok'], ['140–199', '糖尿病前期', 'warn'], ['≥ 200', '可能是糖尿病', 'bad']], tip: '飯後散步 10–15 分鐘、先吃菜和蛋白質再吃澱粉,飯後血糖會比較平穩。' },
+  A1C: { what: '糖化血色素,反映「過去 2–3 個月」的平均血糖,不受當天吃什麼影響,是看血糖控制最重要的指標。',
+    r: [['< 5.7 %', '正常', 'ok'], ['5.7–6.4', '糖尿病前期', 'warn'], ['≥ 6.5', '糖尿病', 'bad']],
+    tip: '每降 1%,糖尿病併發症風險就明顯下降。因為反映 3 個月,通常每 3 個月驗一次。',
+    pen: '瘦瘦筆通常會讓 HbA1c 下降,是追蹤效果的好指標。' },
+  CREA: { what: '肌肉活動產生的廢物,由腎臟排出,用來評估腎臟功能。',
+    r: [['女性 約 0.5–1.0 mg/dL', '正常', 'ok'], ['高於檢驗單位上限', '腎功能可能下降,需搭配 eGFR', 'warn']],
+    tip: '肌肉量多的人肌酸酐會偏高一點,肌肉少的人偏低,所以要搭配 eGFR 看。脫水時也會暫時升高。',
+    pen: '打針期間如果一直吐、拉或喝太少水,可能脫水影響腎功能,記得補充水分。' },
+  EGFR: { what: '腎絲球過濾率,用肌酸酐、年齡、性別推算的「腎臟過濾能力」,數字越高越好。',
+    r: [['≥ 90', '正常', 'ok'], ['60–89', '輕度下降(要搭配尿蛋白看)', 'warn'], ['30–59', '中度下降(慢性腎臟病第 3 期)', 'bad'], ['< 30', '重度下降', 'bad']],
+    tip: '控制血壓、血糖,少吃止痛藥(NSAIDs),多喝水不憋尿,可以保護腎臟。' },
+  EGFR2: { what: '用舊公式(MDRD)算的腎絲球過濾率,意義和 eGFR 一樣。', r: [['≥ 90', '正常', 'ok'], ['60–89', '輕度下降', 'warn'], ['< 60', '下降', 'bad']], tip: '以 CKD-EPI 新公式的 eGFR 為主要參考。' },
+  BUN: { what: '尿素氮,蛋白質代謝後的廢物,由腎臟排出。', r: [['約 7–20 mg/dL', '正常', 'ok']], tip: '吃很多蛋白質或脫水時會偏高,要搭配肌酸酐一起看。' },
+  UA: { what: '尿酸,身體代謝「普林」後的產物,太高會結晶造成痛風、腎結石。',
+    r: [['女性 約 2.5–6.0 mg/dL', '正常', 'ok'], ['6.0–7.0', '偏高', 'warn'], ['> 7.0', '高尿酸,痛風風險增加', 'bad']],
+    tip: '少喝酒(尤其啤酒)、含糖飲料,少吃內臟、海鮮濃湯;多喝水。',
+    pen: '減重速度很快時,尿酸可能短暫上升,記得多喝水;有痛風病史要告訴醫師。' },
+  ALT: { what: 'GPT,肝細胞裡的酵素。肝細胞受傷時會跑到血液中,是看肝臟有沒有發炎最常用的指標。',
+    r: [['< 40 U/L', '一般正常(部分檢驗單位女性 < 33)', 'ok'], ['40–80', '輕度偏高', 'warn'], ['> 80(正常上限 2 倍以上)', '明顯偏高,需追蹤原因', 'bad']],
+    tip: '最常見原因是脂肪肝,其次是 B、C 型肝炎、喝酒、藥物或保健品。減重 5–10% 通常就能讓脂肪肝改善、ALT 下降。',
+    pen: '減重成功後 ALT 常會下降,是很好的進步指標。' },
+  AST: { what: 'GOT,存在肝臟、心臟和肌肉裡的酵素。', r: [['< 40 U/L', '正常', 'ok'], ['> 40', '偏高', 'warn']], tip: '要搭配 ALT 看。剛做完劇烈運動、肌肉受傷也可能升高。' },
+  ALP: { what: '鹼性磷酸酶,主要來自肝臟膽道和骨頭。', r: [['約 40–130 U/L', '正常', 'ok']], tip: '偏高可能是膽道阻塞或骨骼方面問題,需由醫師判斷。' },
+  TBIL: { what: '總膽紅素,紅血球分解後的產物,由肝臟處理後經膽汁排出。', r: [['約 0.2–1.2 mg/dL', '正常', 'ok'], ['偏高', '可能皮膚或眼白變黃', 'warn']],
+    tip: '少數人天生偏高一點(吉伯特氏症候群)沒關係。', pen: '快速減重會增加膽結石機會,如果右上腹痛、發燒、眼白變黃,要儘快就醫。' },
+  TSH: { what: '甲狀腺刺激素,由腦下垂體分泌,用來篩檢甲狀腺功能最敏感的指標。',
+    r: [['約 0.4–4.0 mIU/L', '正常', 'ok'], ['偏高', '可能甲狀腺功能低下(容易累、怕冷、變胖)', 'warn'], ['偏低', '可能甲狀腺功能亢進(心悸、手抖、變瘦)', 'warn']],
+    tip: '甲狀腺功能低下會讓代謝變慢、比較難瘦,所以減重前常會檢查。', pen: '有甲狀腺髓質癌家族史,或第二型多發性內分泌腫瘤的人,不適合用 GLP-1 類藥物,要先告訴醫師。' },
+  FT4: { what: '游離甲狀腺素,真正能發揮作用的甲狀腺荷爾蒙。', r: [['約 0.8–1.8 ng/dL', '正常', 'ok']], tip: '要搭配 TSH 一起看。' },
+  T3: { what: '三碘甲狀腺素,甲狀腺荷爾蒙的一種。', r: [['約 80–200 ng/dL', '正常', 'ok']], tip: '要搭配 TSH、FT4 一起看。' },
+  T4: { what: '甲狀腺素總量。', r: [['約 5–12 μg/dL', '正常', 'ok']], tip: '要搭配 TSH 一起看。' },
+  ATPO: { what: '甲狀腺過氧化酶抗體,用來看有沒有自體免疫甲狀腺炎(橋本氏甲狀腺炎)。', r: [['陰性 / 低於檢驗單位標準', '正常', 'ok'], ['陽性', '有自體免疫甲狀腺炎傾向', 'warn']], tip: '陽性不一定要治療,但要定期追蹤 TSH。' },
+  ATSHR: { what: 'TSH 受體抗體,和葛瑞夫茲病(甲狀腺亢進)有關。', r: [['陰性', '正常', 'ok']], tip: '陽性請由醫師評估。' },
+  WBC: { what: '白血球,身體的免疫部隊。', r: [['約 4,000–10,000 /μL', '正常', 'ok'], ['偏高', '可能有感染或發炎', 'warn'], ['偏低', '免疫力可能較弱', 'warn']], tip: '感冒、發炎時會暫時升高。' },
+  RBC: { what: '紅血球,負責把氧氣送到全身。', r: [['女性 約 4.0–5.2 百萬/μL', '正常', 'ok']], tip: '要搭配血紅素一起看有沒有貧血。' },
+  HGB: { what: '血紅素,紅血球裡帶氧氣的蛋白質,判斷貧血的主要指標。', r: [['女性 12–16 g/dL', '正常', 'ok'], ['< 12', '貧血', 'warn']],
+    tip: '女性常見缺鐵性貧血。多吃紅肉、深綠色蔬菜,搭配維生素 C 幫助鐵吸收。', pen: '打針後吃得少,記得蛋白質和鐵質要吃夠。' },
+  HCT: { what: '血球容積比,紅血球佔血液的比例。', r: [['女性 約 36–46 %', '正常', 'ok']], tip: '脫水時會偏高。' },
+  PLT: { what: '血小板,負責止血。', r: [['約 150,000–400,000 /μL', '正常', 'ok']], tip: '太低容易瘀青、流血不止。' },
+  MCV: { what: '紅血球平均大小。', r: [['約 80–100 fL', '正常', 'ok'], ['偏小', '常見於缺鐵或地中海型貧血', 'warn'], ['偏大', '可能缺 B12 或葉酸', 'warn']], tip: '貧血時可以幫助判斷原因。' },
+  MCH: { what: '每個紅血球平均含多少血紅素。', r: [['約 27–33 pg', '正常', 'ok']], tip: '偏低常見於缺鐵。' },
+  MCHC: { what: '紅血球內血紅素的濃度。', r: [['約 32–36 g/dL', '正常', 'ok']], tip: '' },
+  RDW: { what: '紅血球大小的差異程度。', r: [['約 11.5–14.5 %', '正常', 'ok']], tip: '偏高常見於缺鐵初期。' },
+  SEG: { what: '嗜中性球,白血球的一種,主要對抗細菌。', r: [['約 40–75 %', '正常', 'ok']], tip: '細菌感染時會升高。' },
+  LYM: { what: '淋巴球,白血球的一種,主要對抗病毒。', r: [['約 20–45 %', '正常', 'ok']], tip: '病毒感染時可能升高。' },
+  MONO: { what: '單核球,白血球的一種。', r: [['約 2–10 %', '正常', 'ok']], tip: '' },
+  EO: { what: '嗜酸性球,和過敏、寄生蟲有關。', r: [['約 0–6 %', '正常', 'ok']], tip: '過敏體質的人常偏高。' },
+  K: { what: '鉀,維持心臟和肌肉正常收縮的重要電解質。', r: [['約 3.5–5.1 mmol/L', '正常', 'ok'], ['偏低', '可能抽筋、無力、心律不整', 'warn'], ['偏高', '要注意腎功能和心律', 'bad']],
+    tip: '吃利尿劑、一直吐或拉,鉀容易偏低。', pen: '打針後如果一直吐或腹瀉,電解質會流失,要補充水分。' },
+  NA: { what: '鈉,維持身體水分平衡的電解質。', r: [['約 135–145 mmol/L', '正常', 'ok']], tip: '偏低或偏高通常和水分攝取、腎臟或藥物有關。' },
+  CRP: { what: 'C 反應蛋白,身體有發炎或感染時,肝臟會大量製造,是看「急性發炎」的指標。',
+    r: [['< 0.5 mg/dL(= < 5 mg/L)', '正常', 'ok'], ['0.5–1.0 mg/dL', '輕微發炎', 'warn'], ['> 1.0 mg/dL', '有明顯發炎或感染', 'bad']],
+    tip: '感冒、受傷、牙齒發炎都可能讓 CRP 暫時升高,通常會由醫師搭配症狀判斷。注意單位:有的報告用 mg/dL、有的用 mg/L(差 10 倍)。' },
+  HSCRP: { what: '高敏感度 C 反應蛋白,可以測到很低濃度的發炎,用來評估「血管慢性發炎」和心血管疾病風險。',
+    r: [['< 1.0 mg/L', '心血管風險低', 'ok'], ['1.0–3.0 mg/L', '心血管風險中等', 'warn'], ['> 3.0 mg/L', '心血管風險較高', 'bad'], ['> 10 mg/L', '可能正在感冒或發炎,要等好了再驗', 'warn']],
+    tip: '肥胖(尤其內臟脂肪多)本身就會讓 hs-CRP 升高。減重、運動、戒菸、睡飽、地中海飲食都能讓它下降。注意單位:若報告寫 mg/dL,要乘以 10 才是 mg/L。',
+    pen: '減重、內臟脂肪減少後,hs-CRP 常會一起下降,是身體發炎減少的好指標。' },
+  ESR: { what: '紅血球沉降速率,另一個看身體有沒有發炎的指標。', r: [['女性 < 20 mm/hr', '正常', 'ok']], tip: '年紀大會自然稍微升高,需搭配其他檢查判斷。' },
+  ANA: { what: '抗核抗體,用來篩檢紅斑性狼瘡等自體免疫疾病。', r: [['陰性 或 < 1:80', '正常', 'ok'], ['陽性', '不一定有病,需醫師評估', 'warn']], tip: '一般健康女性也可能有低效價陽性。' },
+  ANAP: { what: '抗核抗體的螢光型態,幫助醫師判斷可能是哪類自體免疫疾病。', r: [['—', '依醫師判讀', 'ok']], tip: '' },
+  RF: { what: '類風濕因子,和類風濕性關節炎有關。', r: [['< 14 IU/mL(依檢驗單位)', '正常', 'ok']], tip: '陽性不一定有病,要搭配關節症狀。' },
+  BNP: { what: 'NT-proBNP,心臟受到壓力時分泌的荷爾蒙,用來評估心臟衰竭。', r: [['< 125 pg/mL(75 歲以下)', '正常', 'ok'], ['偏高', '需評估心臟功能', 'bad']], tip: '腎功能差、年紀大也會偏高。' },
+  LIP: { what: '解脂酶,胰臟分泌的消化酵素。', r: [['約 13–60 U/L(依檢驗單位)', '正常', 'ok'], ['> 正常上限 3 倍', '要懷疑急性胰臟炎', 'bad']],
+    tip: '', pen: '使用 GLP-1 期間如果劇烈上腹痛(可能痛到背後)、嘔吐,醫師會驗這項看是不是胰臟炎。' },
+  UPRO: { what: '尿蛋白,正常腎臟幾乎不會讓蛋白質漏到尿裡。', r: [['陰性(−)', '正常', 'ok'], ['微量(±)~ 陽性(+)', '可能腎臟受損,需複驗', 'warn']], tip: '劇烈運動、發燒、生理期可能暫時陽性。高血壓、糖尿病的人要特別注意。' },
+  USUG: { what: '尿糖。', r: [['陰性(−)', '正常', 'ok'], ['陽性', '血糖可能過高,或在吃 SGLT2 抑制劑', 'warn']], tip: '' },
+  UOB: { what: '尿潛血,看尿中有沒有血。', r: [['陰性(−)', '正常', 'ok']], tip: '女性生理期前後容易陽性,建議避開生理期驗。' },
+  UKET: { what: '尿酮體,身體燃燒脂肪時產生的物質。', r: [['陰性(−)', '正常', 'ok'], ['微量', '吃很少、低醣飲食、空腹太久時常見', 'warn']], tip: '有糖尿病的人如果酮體高又不舒服,要儘快就醫。', pen: '打針後吃得很少,可能出現微量酮體;記得吃夠、喝夠。' },
+  UWBC: { what: '尿中白血球。', r: [['約 0–5 /HPF', '正常', 'ok'], ['偏高', '可能泌尿道感染', 'warn']], tip: '有頻尿、解尿疼痛要看醫師。' },
+  UBIL: { what: '尿膽紅素。', r: [['陰性(−)', '正常', 'ok']], tip: '陽性可能是肝膽問題。' },
+  UURO: { what: '尿膽素原。', r: [['約 0.1–1.0 EU/dL', '正常', 'ok']], tip: '' },
+  USG: { what: '尿比重,看尿液濃縮程度。', r: [['約 1.005–1.030', '正常', 'ok']], tip: '偏高常代表水喝太少。' },
+  UPH: { what: '尿液酸鹼值。', r: [['約 5.0–8.0', '正常', 'ok']], tip: '' },
+  WT: { what: '體重。', r: [['依身高,BMI 18.5–24 對應的體重', '正常', 'ok']], tip: '減重看「趨勢」比看單日準,建議看 7 天平均。' },
+  BMI: { what: '身體質量指數 = 體重(kg)÷ 身高(m)²,快速判斷胖瘦。',
+    r: [['18.5–23.9', '正常(台灣標準)', 'ok'], ['24–26.9', '過重', 'warn'], ['27–29.9', '輕度肥胖', 'bad'], ['30–34.9', '中度肥胖', 'bad'], ['≥ 35', '重度肥胖', 'bad']],
+    tip: 'BMI 不分肌肉和脂肪,要搭配體脂率和腰圍看。' },
+  WAIST: { what: '腰圍,反映腹部(內臟)脂肪,比 BMI 更能預測代謝疾病。', r: [['女性 < 80 cm', '正常', 'ok'], ['女性 ≥ 80 cm', '腹部肥胖(代謝症候群指標之一)', 'bad']], tip: '量法:早上空腹、站直,在肚臍高度水平繞一圈,吐氣結束時量。' },
+  BP: { what: '血壓,收縮壓/舒張壓。', r: [['< 120 / < 80', '正常', 'ok'], ['120–129 / < 80', '血壓偏高', 'warn'], ['130–139 / 80–89', '高血壓第 1 期', 'warn'], ['≥ 140 / ≥ 90', '高血壓第 2 期', 'bad'], ['> 180 / > 120', '危象,立即就醫', 'bad']],
+    tip: '少鹽、減重、規律運動、少喝酒都能降血壓。', pen: '減重後血壓常會下降,有吃降血壓藥的人要注意頭暈,請醫師評估是否調藥。' },
+  SBP: { what: '收縮壓,心臟收縮時血管承受的壓力(上面的數字)。', r: [['< 120 mmHg', '正常', 'ok'], ['120–139', '偏高', 'warn'], ['≥ 140', '高血壓', 'bad']], tip: '' },
+  DBP: { what: '舒張壓,心臟放鬆時血管承受的壓力(下面的數字)。', r: [['< 80 mmHg', '正常', 'ok'], ['80–89', '偏高', 'warn'], ['≥ 90', '高血壓', 'bad']], tip: '' },
+  // ---- InBody ----
+  smm: { what: '骨骼肌重,可以自己控制、用來活動的肌肉。肌肉越多,基礎代謝越高、越不容易復胖。', r: [['依報告的標準範圍(女性常見約 21–27 kg)', '正常', 'ok']],
+    tip: '減重時最重要的是「保住肌肉」:每餐吃夠蛋白質,每週 2–3 次肌力訓練。', pen: 'GLP-1 減重時有 1/4–1/3 可能是肌肉流失,所以要特別注意蛋白質和重訓。' },
+  fatMass: { what: '體脂肪重,身上脂肪的總重量。', r: [['依報告標準範圍(女性約 11–18 kg)', '正常', 'ok']], tip: '減重希望減掉的主要是這個。' },
+  pbf: { what: '體脂肪率,脂肪佔體重的比例。', r: [['女性 18–28 %', '正常', 'ok'], ['28–33', '偏高', 'warn'], ['> 33', '肥胖', 'bad']], tip: '比體重更能反映胖瘦。' },
+  vfl: { what: '內臟脂肪級別,包在內臟周圍的脂肪,和糖尿病、高血壓、脂肪肝、心血管疾病最相關。', r: [['1–9', '正常', 'ok'], ['10–14', '偏高', 'warn'], ['≥ 15', '很高', 'bad']],
+    tip: '內臟脂肪對運動和飲食調整反應很好,通常比皮下脂肪先減。', pen: 'GLP-1 對減少內臟脂肪效果不錯,值得每次追蹤。' },
+  vfa: { what: '內臟脂肪面積(InBody 720 等機型),用腹部斷面估計的內臟脂肪量。', r: [['< 100 cm²', '正常', 'ok'], ['≥ 100 cm²', '內臟脂肪過多', 'bad']], tip: '和內臟脂肪級別意義相同,只是單位不同,不能直接互比。' },
+  bmr: { what: '基礎代謝率,躺著什麼都不做一天也會消耗的熱量。', r: [['依報告標準範圍', '—', 'ok']], tip: '肌肉越多基礎代謝越高。吃太少、肌肉流失會讓基礎代謝下降,容易復胖。' },
+  whr: { what: '腰臀比 = 腰圍 ÷ 臀圍,判斷是不是「蘋果型」腹部肥胖。', r: [['女性 ≤ 0.85(InBody 720 標準 0.70–0.80)', '正常', 'ok'], ['女性 > 0.85', '腹部肥胖', 'bad']], tip: '' },
+  ffm: { what: '除脂體重,體重扣掉脂肪後剩下的部分(肌肉、骨骼、水分等)。', r: [['—', '減重時希望維持不掉', 'ok']], tip: '' },
+  tbw: { what: '身體總水重。', r: [['依報告標準範圍', '—', 'ok']], tip: '肌肉含水量高,水分不足時肌肉表現也會變差。' },
+  protein: { what: '蛋白質重,反映肌肉量與營養狀況。', r: [['依報告標準範圍', '—', 'ok']], tip: '低於標準代表營養或肌肉不足。' },
+  mineral: { what: '礦物質重,大部分在骨骼,和骨質有關。', r: [['依報告標準範圍', '—', 'ok']], tip: '偏低要注意骨質疏鬆,鈣質、維生素 D、負重運動很重要。' },
+  smi: { what: '四肢骨骼肌質量指數,用來篩檢「肌少症」。', r: [['女性 ≥ 5.7 kg/m²', '正常', 'ok'], ['女性 < 5.7', '肌肉量不足(肌少症風險)', 'bad']], tip: '' },
+  score: { what: 'InBody 評分,綜合身體組成的分數。', r: [['70–90', '一般良好', 'ok'], ['< 70', '肌肉偏少或脂肪偏多', 'warn']], tip: '肌肉發達的人可能超過 100 分。' },
+};
+LAB_INFO.weight = LAB_INFO.WT; LAB_INFO.bmi = LAB_INFO.BMI; LAB_INFO.waist = LAB_INFO.WAIST;
+const LAB_INFO_CSS = `.li-sec{margin-top:12px}.li-sec h4{font-size:14px;margin:0 0 4px}.li-sec p{font-size:14px;line-height:1.7;margin:0}
+.li-tbl{width:100%;border-collapse:collapse;font-size:13px}.li-tbl td{padding:6px 4px;border-top:1px solid rgba(128,128,128,.2);vertical-align:top}
+.li-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}.li-ok{background:#1a9e6e}.li-warn{background:#d98a00}.li-bad{background:#d64545}
+.li-pen{background:rgba(91,69,201,.08);border-radius:10px;padding:8px 10px}.li-foot{font-size:11px;opacity:.7;margin-top:12px;line-height:1.6}`;
+function labInfoHtml(key) {
+  const x = LAB_INFO[key]; if (!x) return '';
+  const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return `<div class="li-sec"><h4>📖 這是什麼</h4><p>${e(x.what)}</p></div>
+    ${x.r && x.r.length ? `<div class="li-sec"><h4>📏 參考範圍</h4><table class="li-tbl">${x.r.map(([a, b, c]) => `<tr><td style="white-space:nowrap;font-weight:700"><span class="li-dot li-${c}"></span>${e(a)}</td><td>${e(b)}</td></tr>`).join('')}</table></div>` : ''}
+    ${x.tip ? `<div class="li-sec"><h4>💡 要注意 / 怎麼改善</h4><p>${e(x.tip)}</p></div>` : ''}
+    ${x.pen ? `<div class="li-sec li-pen"><h4>💉 跟瘦瘦筆的關係</h4><p>${e(x.pen)}</p></div>` : ''}
+    <div class="li-foot">以上是成人一般參考值,不同檢驗單位會略有不同,請以報告上的參考值和醫師判讀為準。</div>`;
+}
+
+document.head.insertAdjacentHTML('beforeend', `<style>${LAB_INFO_CSS}</style>`);
+// 點指標看說明(用底部面板)
+function openInfo(title, valueHtml, key) {
+  ui.info = true;
+  $('#sheet').innerHTML = `<div class="sheet-head"><span></span><h3>${esc(title)}</h3><button class="btn ghost small" data-act="closeSheet">關閉</button></div>
+    <div class="card">${valueHtml}${labInfoHtml(key) || '<div class="sub" style="margin-top:10px">這個項目還沒有說明,請以報告參考值和醫師判讀為準。</div>'}</div>`;
+  $('#sheet').classList.add('show'); $('#sheetBg').classList.add('show'); $('#sheet').scrollTop = 0;
+}
+function openLabInfo(key) {
+  const s = BP?.health?.series?.find(x => x.key === key); if (!s) return;
+  const hist = [...s.pts].reverse().map(p => `<tr><td>${ymd(p.d)}</td><td style="font-weight:700">${esc(p.raw)} ${esc(s.unit || '')}</td><td>${s.key === 'BP' ? esc(p.label || '') : stPill(p.st)}</td></tr>`).join('');
+  openInfo(s.name, `<div class="sub">你的紀錄</div><table class="li-tbl">${hist}</table>`, key);
+}
+function openIbInfo(k) {
+  const f = IB_FIELDS.find(x => x[0] === k); if (!f) return;
+  const hist = [...ibSorted()].reverse().filter(x => x[k] != null).map(x => `<tr><td>${fmtFull(x.ts)}</td><td style="font-weight:700">${x[k]} ${f[2]}</td></tr>`).join('');
+  openInfo(f[1], `<div class="sub">你的 InBody 紀錄</div><table class="li-tbl">${hist}</table>`, k);
 }
 
 // ---------- InBody 身體組成紀錄 ----------
@@ -1185,11 +1342,11 @@ function inbodyCard() {
     const f = IB_FIELDS.find(x => x[0] === k), d = prev && prev[k] != null ? last[k] - prev[k] : null;
     const good = d == null || d === 0 ? null : IB_UP_GOOD.includes(k) ? d > 0 : d < 0;
     const hi = f[3] != null && last[k] > f[3];
-    return `<div class="stat"><div class="k">${f[1]}${hi ? ' <span class="pill bad" style="font-size:10px;padding:1px 6px">偏高</span>' : ''}</div><div class="n">${last[k]}<small>${f[2]}</small></div>${d != null && d !== 0 ? `<div class="sub" style="font-size:12px;color:${good ? 'var(--ok)' : 'var(--bad)'}">${d > 0 ? '+' : ''}${+d.toFixed(2)} 比上次</div>` : ''}</div>`;
+    return `<div class="stat" data-act="ibInfo" data-k="${k}" style="cursor:pointer"><div class="k">${f[1]} <span class="muted">ⓘ</span>${hi ? ' <span class="pill bad" style="font-size:10px;padding:1px 6px">偏高</span>' : ''}</div><div class="n">${last[k]}<small>${f[2]}</small></div>${d != null && d !== 0 ? `<div class="sub" style="font-size:12px;color:${good ? 'var(--ok)' : 'var(--bad)'}">${d > 0 ? '+' : ''}${+d.toFixed(2)} 比上次</div>` : ''}</div>`;
   }).join('')}</div>
   ${last.target ? `<div class="sub" style="margin-top:10px">🎯 InBody 建議目標體重 <b>${last.target} kg</b>${last.weight ? `(還差 ${f1(last.weight - last.target)} kg)` : ''}${last.kcal ? ` · 建議每日熱量 ${last.kcal} kcal` : ''}</div>` : ''}
   ${last.note ? `<div class="sub" style="margin-top:6px">📝 ${esc(last.note)}</div>` : ''}
-  <details class="how guide"><summary>全部數值</summary><div class="list">${IB_FIELDS.filter(([k]) => last[k] != null).map(([k, n, u]) => `<div class="item"><div class="grow">${n}</div><div class="v">${last[k]} <small class="muted">${u}</small></div></div>`).join('')}</div></details>
+  <details class="how guide"><summary>全部數值</summary><div class="list">${IB_FIELDS.filter(([k]) => last[k] != null).map(([k, n, u]) => `<div class="item" data-act="ibInfo" data-k="${k}" style="cursor:pointer"><div class="grow">${n} <span class="muted">ⓘ</span></div><div class="v">${last[k]} <small class="muted">${u}</small></div></div>`).join('')}</div></details>
   ${list.length > 1 ? `<details class="how guide"><summary>歷次紀錄(${list.length} 次)</summary><div class="list">${[...list].reverse().map(x => `<div class="item"><div class="grow"><div class="v" style="font-weight:600">${fmtFull(x.ts)}</div><div class="t">體重 ${x.weight ?? '—'} · 骨骼肌 ${x.smm ?? '—'} · 體脂率 ${x.pbf ?? '—'}% · ${x.vfl != null ? '內臟脂肪 ' + x.vfl + ' 級' : x.vfa != null ? '內臟脂肪 ' + x.vfa + ' cm²' : ''}</div></div><button class="x" data-act="delIb" data-id="${x.id}">✕</button></div>`).join('')}</div></details>`
     : `<div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn ghost small" data-act="delIb" data-id="${last.id}">刪除這筆</button></div>`}
   <div class="note">內臟脂肪級別 1–9、內臟脂肪面積 100 cm² 以下屬正常;不同型號(270/720)的數值會有些差異。腰臀比女性 > 0.85 視為腹部肥胖。減重時希望看到:體脂肪 ↓、骨骼肌維持或 ↑。</div>
@@ -1255,6 +1412,8 @@ function saveIb() {
 }
 function ibClick(act, b) {
   if (act === 'openIb') { openIb(); return true; }
+  if (act === 'labInfo') { openLabInfo(b.dataset.key); return true; }
+  if (act === 'ibInfo') { openIbInfo(b.dataset.k); return true; }
   if (act === 'copyIbPrompt') { copyText(IB_PROMPT, '已複製,到 AI 貼上並附 InBody 照片'); return true; }
   if (act === 'pasteIb') {
     const ta = $('#ibText');
@@ -1427,7 +1586,7 @@ document.addEventListener('click', e => {
   else if (act === 'theme') { S.settings.theme = v; save(); applyTheme(); render(); }
   else if (act === 'openFood') openFood();
   else if (act === 'meal') { b.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }
-  else if (act === 'closeSheet') { ui.food = null; ui.ib = null; renderSheet(); }
+  else if (act === 'closeSheet') { ui.food = null; ui.ib = null; ui.info = null; renderSheet(); }
   else if (act === 'serv') { readFoodForm(); ui.food.serv = Math.max(0.5, ui.food.serv + +v); $('#servN').textContent = ui.food.serv; }
   else if (act === 'copyPrompt') copyText(AI_PROMPT, '已複製,到 AI 貼上並附照片');
   else if (act === 'pasteAI') {
@@ -1479,7 +1638,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'qkg') $('[data-act=quickWeight]').click(); });
 window.addEventListener('resize', () => { clearTimeout(window._rz); window._rz = setTimeout(afterRender, 150); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!ui.food && !ui.ib) render(); syncAll(); setTimeout(checkUpdate, 3000); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!ui.food && !ui.ib && !ui.info) render(); syncAll(); setTimeout(checkUpdate, 3000); } });
 
 load(); applyTheme(); render(); syncAll();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
